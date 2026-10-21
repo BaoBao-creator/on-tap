@@ -525,10 +525,12 @@ body.mode-review .ds-btn { cursor: default; }
   .pdf-pane {
     flex: 1;
     min-height: 160px;
-    overflow: auto;
-    touch-action: pan-x pan-y;
-    -webkit-overflow-scrolling: touch;
   }
+  .pdf-zoom-wrap { padding: 6px; gap: 6px; }
+  .pdf-page-wrapper { max-width: 100%; }
+  .pdf-toolbar { padding: 4px 6px; gap: 3px; }
+  .ptbtn { width: 30px; height: 30px; font-size: 13px; }
+  .zoom-label { min-width: 40px; font-size: 11px; }
   .answer-pane {
     flex: 0 0 auto;
     max-height: 55dvh;
