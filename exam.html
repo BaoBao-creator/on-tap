@@ -21,7 +21,7 @@
 
   <div class="exam-layout">
     <section class="pdf-pane">
-      <iframe id="pdf-viewer" title="Đề bài"></iframe>
+      <div id="pdf-container" class="pdf-container"></div>
     </section>
 
     <aside class="answer-pane">
@@ -64,6 +64,7 @@
       navigator.serviceWorker.register('./sw.js').catch(e => console.warn('SW:', e));
     }
   </script>
+  <script src="./pdfjs/pdf.min.js"></script>
   <script type="module" src="./js/exam.js"></script>
 </body>
 </html>
