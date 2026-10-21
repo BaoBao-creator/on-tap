@@ -667,4 +667,12 @@ document.addEventListener('touchend', (e) => {
   lastTouchEnd = now;
 }, { passive: false });
 
+document.getElementById('zoom-in').addEventListener('click', () => applyPdfZoom(pdfZoomScale + 0.2));
+document.getElementById('zoom-out').addEventListener('click', () => applyPdfZoom(pdfZoomScale - 0.2));
+document.getElementById('zoom-reset').addEventListener('click', () => applyPdfZoom(1));
+document.getElementById('draw-toggle').addEventListener('click', toggleDrawMode);
+document.getElementById('draw-color').addEventListener('click', cycleDrawColor);
+document.getElementById('draw-undo').addEventListener('click', undoLastStroke);
+document.getElementById('draw-clear').addEventListener('click', clearAllStrokes);
+
 init();
