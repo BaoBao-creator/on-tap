@@ -439,16 +439,56 @@ body.mode-review .ds-btn { cursor: default; }
 
 /* ---------- Responsive ---------- */
 @media (max-width: 900px) {
-  .exam-layout { flex-direction: column; }
-  .pdf-pane { flex: 1; min-height: 0; }
+  .exam-body {
+    height: auto;
+    min-height: 100vh;
+    min-height: 100dvh;     /* viewport thực trên mobile */
+    overflow: visible;      /* cho page cuộn, không cắt footer */
+  }
+
+  .exam-layout {
+    flex-direction: column;
+    flex: none;
+    min-height: 0;
+  }
+
+  .pdf-pane {
+    flex: none;
+    height: 55vh;
+    height: 55dvh;
+    min-height: 260px;
+    overflow-y: auto;
+  }
+
   .answer-pane {
+    flex: none;
     width: 100%;
-    max-height: 50vh;
-    min-height: 220px;
+    max-height: none;
+    min-height: auto;
     border-left: none;
     border-top: 1px solid var(--border);
+    overflow: visible;
   }
-  .answer-list { padding: 10px; }
+
+  .answer-list {
+    flex: none;
+    overflow: visible;
+    max-height: none;
+    padding: 10px;
+  }
+
+  .answer-footer {
+    position: sticky;
+    bottom: 0;
+    background: var(--bg);
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.06);
+    z-index: 20;
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+    flex-shrink: 0;
+  }
+
+  body:not(.mode-review) #submit-btn { display: block; }
+
   .section-header { display: none; }
   .section-tag {
     display: inline;
@@ -461,10 +501,11 @@ body.mode-review .ds-btn { cursor: default; }
   body:not(.mode-review) .question-block.current .section-header { display: block; }
   body.mode-review .question-block { display: block !important; }
   body.mode-review .section-header { display: block; }
-  body.mode-review .pdf-pane { flex: 0 0 30vh; }
-  body.mode-review .answer-pane { max-height: none; flex: 1; min-height: 0; }
   body.mode-review .mobile-nav { display: none !important; }
 
   .mobile-nav { display: flex; }
   .answer-footer { padding: 8px 10px; }
+
+  .pdf-container { padding: 8px; gap: 8px; }
+  .pdf-page { max-width: 100%; }
 }
