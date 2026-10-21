@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0ea5e9">
+  <title>Làm bài</title>
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./css/style.css">
+</head>
+<body class="exam-body">
+  <header class="exam-header">
+    <a class="back-btn" href="./index.html">← Menu</a>
+    <h1 id="exam-title">Đang tải...</h1>
+    <div id="net-status" class="net-status">
+      <span class="dot"></span>
+      <span class="label"></span>
+    </div>
+  </header>
+
+  <div class="exam-layout">
+    <section class="pdf-pane">
+      <iframe id="pdf-viewer" title="Đề bài"></iframe>
+    </section>
+
+    <aside class="answer-pane">
+      <div class="answer-list" id="answer-list"></div>
+      <div class="answer-footer">
+        <div class="mobile-nav" id="mobile-nav">
+          <button class="nav-btn" id="prev-q" type="button">‹</button>
+          <span class="nav-info" id="q-index">1 / 1</span>
+          <button class="nav-btn" id="next-q" type="button">›</button>
+        </div>
+        <button class="btn btn-primary" id="submit-btn" type="button">Nộp bài</button>
+        <div class="review-actions" id="review-actions">
+          <button class="btn btn-secondary retry-action" type="button">Làm lại</button>
+          <a class="btn btn-primary" href="./index.html">Về menu</a>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <div class="loading-overlay" id="loading-overlay">
+    <div class="spinner"></div>
+    <p id="loading-text">Đang tải đề...</p>
+  </div>
+
+  <div class="result-overlay hidden" id="result-overlay">
+    <div class="result-card">
+      <h2>Kết quả</h2>
+      <p class="result-score" id="result-score">0 / 0</p>
+      <p class="result-detail" id="result-detail"></p>
+      <div class="result-actions">
+        <button class="btn btn-secondary" id="result-review-btn" type="button">Xem bài làm</button>
+        <button class="btn btn-secondary retry-action" type="button">Làm lại</button>
+        <a class="btn btn-primary" href="./index.html">Về menu</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js').catch(e => console.warn('SW:', e));
+    }
+  </script>
+  <script type="module" src="./js/exam.js"></script>
+</body>
+</html>
