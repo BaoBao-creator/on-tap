@@ -23,6 +23,7 @@ const $loadingText = document.getElementById('loading-text');
 const $result = document.getElementById('result-overlay');
 const $reviewActions = document.getElementById('review-actions');
 const $pdfContainer = document.getElementById('pdf-container');
+const $pdfZoomWrap = document.getElementById('pdf-zoom-wrap');
 
 const state = {
   questions: [],
