@@ -21,7 +21,20 @@
 
   <div class="exam-layout">
     <section class="pdf-pane">
-      <div id="pdf-container" class="pdf-container"></div>
+      <div class="pdf-toolbar">
+        <button class="ptbtn" id="zoom-out" title="Thu nhỏ">−</button>
+        <span class="zoom-label" id="zoom-label">100%</span>
+        <button class="ptbtn" id="zoom-in" title="Phóng to">+</button>
+        <button class="ptbtn" id="zoom-reset" title="Reset zoom">↺</button>
+        <span class="pt-sep"></span>
+        <button class="ptbtn" id="draw-toggle" title="Bật/tắt vẽ lên đề">✏️</button>
+        <button class="ptbtn" id="draw-color" title="Đổi màu bút" style="color:#ef4444">●</button>
+        <button class="ptbtn" id="draw-undo" title="Hoàn tác nét vẽ">↶</button>
+        <button class="ptbtn" id="draw-clear" title="Xóa hết nét vẽ">🗑</button>
+      </div>
+      <div id="pdf-container" class="pdf-container">
+        <div id="pdf-zoom-wrap" class="pdf-zoom-wrap"></div>
+      </div>
     </section>
 
     <aside class="answer-pane">
