@@ -36,11 +36,6 @@
     <aside class="answer-pane">
       <div class="answer-list" id="answer-list"></div>
       <div class="answer-footer">
-        <div class="mobile-nav" id="mobile-nav">
-          <button class="nav-btn" id="prev-q" type="button">‹</button>
-          <span class="nav-info" id="q-index">1 / 1</span>
-          <button class="nav-btn" id="next-q" type="button">›</button>
-        </div>
         <button class="btn btn-primary" id="submit-btn" type="button">Nộp bài</button>
         <div class="review-actions" id="review-actions">
           <button class="btn btn-secondary retry-action" type="button">Làm lại</button>
@@ -48,6 +43,17 @@
         </div>
       </div>
     </aside>
+  </div>
+
+  <div class="question-picker-overlay hidden" id="question-picker" role="dialog" aria-modal="true" aria-labelledby="question-picker-title">
+    <section class="question-picker-card">
+      <div class="question-picker-header">
+        <h2 id="question-picker-title">Chọn câu</h2>
+        <button class="question-picker-close" id="close-question-picker" type="button" aria-label="Đóng">×</button>
+      </div>
+      <div class="question-picker-list" id="question-picker-list"></div>
+      <p class="question-picker-legend"><span class="legend-dot answered"></span> Đã trả lời</p>
+    </section>
   </div>
 
   <div class="loading-overlay" id="loading-overlay">
