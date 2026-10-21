@@ -476,19 +476,123 @@ function reviewTLN(q, userAns, isCorrect) {
   return wrap;
 }
 
-// ========== ZOOM CONTROL ==========
+// ========== ZOOM + DRAW ==========
 let pdfZoomScale = 1;
 const pdfPaneEl = document.querySelector('.pdf-pane');
-const pdfContainerEl = document.getElementById('pdf-container');
+
+// --- Draw state ---
+const DRAW_COLORS = ['#ef4444', '#0ea5e9', '#22c55e', '#eab308', '#111827'];
+let drawColorIdx = 0;
+let drawColor = DRAW_COLORS[0];
+let drawEnabled = false;
+let strokeHistory = [];       // [{ page, color, points: [{x,y}...] }]
+const pageCanvases = new Map(); // pageIndex -> { pageCanvas, inkCanvas, wrapper }
 
 function applyPdfZoom(scale) {
   pdfZoomScale = Math.max(1, Math.min(4, scale));
-  if (pdfContainerEl) pdfContainerEl.style.zoom = pdfZoomScale;
+  if ($pdfZoomWrap) $pdfZoomWrap.style.zoom = pdfZoomScale;
+  const label = document.getElementById('zoom-label');
+  if (label) label.textContent = Math.round(pdfZoomScale * 100) + '%';
+}
+
+function redrawPageFromHistory(pageIndex) {
+  const info = pageCanvases.get(pageIndex);
+  if (!info) return;
+  const { inkCanvas } = info;
+  const ctx = inkCanvas.getContext('2d');
+  ctx.clearRect(0, 0, inkCanvas.width, inkCanvas.height);
+  const w = inkCanvas.width, h = inkCanvas.height;
+  for (const s of strokeHistory) {
+    if (s.page !== pageIndex) continue;
+    ctx.strokeStyle = s.color;
+    ctx.lineWidth = Math.max(2, w / 400);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    s.points.forEach((p, i) => {
+      const x = p.x * w, y = p.y * h;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+  }
+}
+
+function attachDrawHandlers(pageIndex, inkCanvas) {
+  let drawing = false;
+  let currentPts = null;
+
+  function getPoint(e) {
+    const rect = inkCanvas.getBoundingClientRect();
+    return {
+      x: (e.clientX - rect.left) / rect.width,
+      y: (e.clientY - rect.top) / rect.height,
+    };
+  }
+  function drawSeg(a, b, color) {
+    const ctx = inkCanvas.getContext('2d');
+    const w = inkCanvas.width, h = inkCanvas.height;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = Math.max(2, w / 400);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(a.x * w, a.y * h);
+    ctx.lineTo(b.x * w, b.y * h);
+    ctx.stroke();
+  }
+
+  inkCanvas.addEventListener('pointerdown', (e) => {
+    if (!drawEnabled) return;
+    e.preventDefault();
+    try { inkCanvas.setPointerCapture(e.pointerId); } catch (_) {}
+    drawing = true;
+    currentPts = [getPoint(e)];
+  });
+  inkCanvas.addEventListener('pointermove', (e) => {
+    if (!drawing) return;
+    e.preventDefault();
+    const pt = getPoint(e);
+    drawSeg(currentPts[currentPts.length - 1], pt, drawColor);
+    currentPts.push(pt);
+  });
+  const endDraw = () => {
+    if (!drawing) return;
+    drawing = false;
+    if (currentPts && currentPts.length > 1) {
+      strokeHistory.push({ page: pageIndex, color: drawColor, points: currentPts });
+    }
+    currentPts = null;
+  };
+  inkCanvas.addEventListener('pointerup', endDraw);
+  inkCanvas.addEventListener('pointercancel', endDraw);
+  inkCanvas.addEventListener('pointerleave', endDraw);
+}
+
+function toggleDrawMode() {
+  drawEnabled = !drawEnabled;
+  document.body.classList.toggle('draw-mode', drawEnabled);
+  const btn = document.getElementById('draw-toggle');
+  if (btn) btn.classList.toggle('active', drawEnabled);
+}
+function cycleDrawColor() {
+  drawColorIdx = (drawColorIdx + 1) % DRAW_COLORS.length;
+  drawColor = DRAW_COLORS[drawColorIdx];
+  const btn = document.getElementById('draw-color');
+  if (btn) btn.style.color = drawColor;
+}
+function undoLastStroke() {
+  if (!strokeHistory.length) return;
+  const last = strokeHistory.pop();
+  redrawPageFromHistory(last.page);
+}
+function clearAllStrokes() {
+  const pages = new Set(strokeHistory.map(s => s.page));
+  strokeHistory.length = 0;
+  pages.forEach(p => redrawPageFromHistory(p));
 }
 
 // --- Desktop: Ctrl + lăn chuột ---
-// Trên PDF  → zoom PDF
-// Ngoài PDF → chặn hoàn toàn (không zoom UI)
 window.addEventListener('wheel', (e) => {
   if (!e.ctrlKey && !e.metaKey) return;
   e.preventDefault();
@@ -499,10 +603,9 @@ window.addEventListener('wheel', (e) => {
 }, { passive: false });
 
 // --- Mobile: pinch trong PDF ---
-if (pdfPaneEl && pdfContainerEl) {
+if (pdfPaneEl) {
   let startDist = 0;
   let startScale = 1;
-
   pdfPaneEl.addEventListener('touchstart', (e) => {
     if (e.touches.length === 2) {
       startDist = Math.hypot(
@@ -512,9 +615,8 @@ if (pdfPaneEl && pdfContainerEl) {
       startScale = pdfZoomScale;
     }
   }, { passive: true });
-
   pdfPaneEl.addEventListener('touchmove', (e) => {
-    if (e.touches.length === 2 && startDist > 0) {
+    if (e.touches.length === 2 && startDist > 0 && !drawEnabled) {
       e.preventDefault();
       const dist = Math.hypot(
         e.touches[0].clientX - e.touches[1].clientX,
@@ -523,16 +625,6 @@ if (pdfPaneEl && pdfContainerEl) {
       applyPdfZoom(startScale * (dist / startDist));
     }
   }, { passive: false });
-
-  // Double-tap trong PDF → reset về 1×
-  let lastTap = 0;
-  pdfPaneEl.addEventListener('touchend', (e) => {
-    if (e.changedTouches.length === 1 && e.touches.length === 0) {
-      const now = Date.now();
-      if (now - lastTap < 300) applyPdfZoom(1);
-      lastTap = now;
-    }
-  }, { passive: true });
 }
 
 // --- Chặn pinch/double-tap zoom ngoài PDF (mobile) ---
