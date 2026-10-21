@@ -58,16 +58,18 @@ async function init() {
       await downloadExam(examName);
     }
 
-    $loadingText.textContent = 'Đang mở đề...';
-    const { answers, pdfUrl } = await loadExamData(examName);
-    state.pdfUrl = pdfUrl;
-    $pdf.src = pdfUrl;
-
-    buildQuestions(answers);
-    restoreProgress();
-    render();
-
-    $loading.classList.add('hidden');
+  $loadingText.textContent = 'Đang mở đề...';
+  const { answers, pdfData } = await loadExamData(examName);
+  state.pdfData = pdfData;
+  
+  buildQuestions(answers);
+  restoreProgress();
+  render();
+  
+  $loadingText.textContent = 'Đang hiển thị đề...';
+  await renderPdf(pdfData);
+  
+  $loading.classList.add('hidden');
   } catch (err) {
     console.error(err);
     $loadingText.textContent = 'Lỗi: ' + err.message;
