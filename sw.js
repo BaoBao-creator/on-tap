@@ -1,4 +1,4 @@
-const VERSION = 'v3';
+const VERSION = 'v4';
 const CACHE_APP = `app-${VERSION}`;
 const CACHE_EXAM = 'exam-cache';
 
