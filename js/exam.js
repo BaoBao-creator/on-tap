@@ -79,31 +79,55 @@ async function init() {
 }
 
 async function renderPdf(pdfBuffer) {
-  $pdfContainer.innerHTML = '<div class="pdf-loading">Đang hiển thị đề...</div>';
+  $pdfZoomWrap.innerHTML = '<div class="pdf-loading">Đang hiển thị đề...</div>';
   try {
     if (!window.pdfjsLib) throw new Error('Thiếu pdf.js (chưa tải được từ CDN)');
 
     const task = window.pdfjsLib.getDocument({ data: pdfBuffer });
     const pdf = await task.promise;
-    $pdfContainer.innerHTML = '';
+    $pdfZoomWrap.innerHTML = '';
+
+    pageCanvases.clear();
+    strokeHistory.length = 0;
+    drawEnabled = false;
+    document.body.classList.remove('draw-mode');
+    const toggleBtn = document.getElementById('draw-toggle');
+    if (toggleBtn) toggleBtn.classList.remove('active');
+    applyPdfZoom(1);
 
     const renderScale = 2;
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
       const viewport = page.getViewport({ scale: renderScale });
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.floor(viewport.width);
-      canvas.height = Math.floor(viewport.height);
-      canvas.className = 'pdf-page';
-      $pdfContainer.appendChild(canvas);
+
+      const wrapper = document.createElement('div');
+      wrapper.className = 'pdf-page-wrapper';
+
+      const pageCanvas = document.createElement('canvas');
+      pageCanvas.width = Math.floor(viewport.width);
+      pageCanvas.height = Math.floor(viewport.height);
+      pageCanvas.className = 'pdf-page';
+
+      const inkCanvas = document.createElement('canvas');
+      inkCanvas.className = 'pdf-ink';
+      inkCanvas.width = pageCanvas.width;
+      inkCanvas.height = pageCanvas.height;
+
+      wrapper.appendChild(pageCanvas);
+      wrapper.appendChild(inkCanvas);
+      $pdfZoomWrap.appendChild(wrapper);
+
       await page.render({
-        canvasContext: canvas.getContext('2d'),
+        canvasContext: pageCanvas.getContext('2d'),
         viewport,
       }).promise;
+
+      pageCanvases.set(i, { pageCanvas, inkCanvas, wrapper });
+      attachDrawHandlers(i, inkCanvas);
     }
   } catch (err) {
     console.error('PDF render error:', err);
-    $pdfContainer.innerHTML =
+    $pdfZoomWrap.innerHTML =
       '<div class="pdf-loading">Không hiển thị được PDF: ' + err.message + '</div>';
   }
 }
