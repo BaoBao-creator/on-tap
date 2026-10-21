@@ -373,6 +373,10 @@ button { font: inherit; cursor: pointer; }
   align-items: center;
   gap: 8px;
 }
+
+/* JS refreshes this class on initial load and after returning from background. */
+body.mobile-layout:not(.mode-review) .mobile-nav { display: flex; }
+body.mobile-layout.mode-review .mobile-nav { display: none !important; }
 .nav-btn {
   width: 40px; height: 40px;
   border: 1px solid var(--border);
