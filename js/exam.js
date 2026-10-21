@@ -2,6 +2,9 @@ import {
   isDownloaded, downloadExam, loadExamData,
   saveProgress, loadProgress, clearProgress
 } from './store.js';
+if (window.pdfjsLib) {
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc = './pdfjs/pdf.worker.min.js';
+}
 
 const params = new URLSearchParams(location.search);
 const examName = params.get('de');
