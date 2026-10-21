@@ -1,6 +1,6 @@
-const VERSION = 'v1';
+const VERSION = 'v2';
 const CACHE_APP = `app-${VERSION}`;
-const CACHE_EXAM = 'exam-cache'; // không đổi version → giữ đề đã tải qua các lần update app
+const CACHE_EXAM = 'exam-cache';
 
 const APP_FILES = [
   './',
@@ -14,6 +14,8 @@ const APP_FILES = [
   './manifest.json',
   './icons/icon.svg',
   './icons/icon-maskable.svg',
+  './pdfjs/pdf.min.js',
+  './pdfjs/pdf.worker.min.js',
 ];
 
 const EXAM_RAW_PREFIX = 'https://raw.githubusercontent.com/BaoBao-creator/on-tap/main/exam/';
