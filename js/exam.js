@@ -438,8 +438,7 @@ function setCurrent(idx) {
   }
   updateMobileNav();
 }
-$prevQ.addEventListener('click', () => setCurrent(state.currentIndex - 1));
-$nextQ.addEventListener('click', () => setCurrent(state.currentIndex + 1));
+
 
 
 document.getElementById('close-question-picker')?.addEventListener('click', closeQuestionPicker);
