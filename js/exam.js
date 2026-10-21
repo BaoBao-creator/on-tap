@@ -14,9 +14,8 @@ const examName = params.get('de');
 const $title = document.getElementById('exam-title');
 const $answerList = document.getElementById('answer-list');
 const $submitBtn = document.getElementById('submit-btn');
-const $prevQ = document.getElementById('prev-q');
-const $nextQ = document.getElementById('next-q');
-const $qIndex = document.getElementById('q-index');
+const $questionPicker = document.getElementById('question-picker');
+const $questionPickerList = document.getElementById('question-picker-list');
 const $net = document.getElementById('net-status');
 const $loading = document.getElementById('loading-overlay');
 const $loadingText = document.getElementById('loading-text');
@@ -205,10 +204,15 @@ function render() {
     label.appendChild(tag);
     block.appendChild(label);
 
-    if (q.type === 'abcd') block.appendChild(renderABCD(q));
-    else if (q.type === 'ds') block.appendChild(renderDS(q));
-    else if (q.type === 'tln') block.appendChild(renderTLN(q));
+    const controlRow = document.createElement('div');
+    controlRow.className = 'question-controls';
 
+    if (q.type === 'abcd') controlRow.appendChild(renderABCD(q));
+    else if (q.type === 'ds') controlRow.appendChild(renderDS(q));
+    else if (q.type === 'tln') controlRow.appendChild(renderTLN(q));
+
+    controlRow.appendChild(createQuestionNav());
+    block.appendChild(controlRow);
     $answerList.appendChild(block);
   });
   updateMobileNav();
@@ -334,9 +338,93 @@ function renderTLN(q) {
 }
 
 function updateMobileNav() {
-  $qIndex.textContent = `${state.currentIndex + 1} / ${state.questions.length || 1}`;
-  $prevQ.disabled = state.currentIndex === 0;
-  $nextQ.disabled = state.currentIndex >= state.questions.length - 1;
+  const total = state.questions.length || 1;
+
+  document.querySelectorAll('.question-nav').forEach((nav) => {
+    const prev = nav.querySelector('.prev-q');
+    const next = nav.querySelector('.next-q');
+    const indexButton = nav.querySelector('.q-index');
+
+    if (prev) prev.disabled = state.currentIndex === 0;
+    if (next) next.disabled = state.currentIndex >= total - 1;
+    if (indexButton) {
+      indexButton.textContent = `[${state.currentIndex + 1}/${total}]`;
+      indexButton.setAttribute('aria-label', `Chọn câu ${state.currentIndex + 1} trên ${total}`);
+    }
+  });
+}
+
+function createQuestionNav() {
+  const nav = document.createElement('div');
+  nav.className = 'mobile-nav question-nav';
+
+  const prev = document.createElement('button');
+  prev.type = 'button';
+  prev.className = 'nav-btn prev-q';
+  prev.textContent = '‹';
+  prev.setAttribute('aria-label', 'Câu trước');
+  prev.addEventListener('click', () => setCurrent(state.currentIndex - 1));
+
+  const indexButton = document.createElement('button');
+  indexButton.type = 'button';
+  indexButton.className = 'nav-info q-index';
+  indexButton.textContent = `[${state.currentIndex + 1}/${state.questions.length || 1}]`;
+  indexButton.setAttribute('aria-label', 'Chọn câu');
+  indexButton.title = 'Bấm để chọn câu';
+  indexButton.addEventListener('click', openQuestionPicker);
+
+  const next = document.createElement('button');
+  next.type = 'button';
+  next.className = 'nav-btn next-q';
+  next.textContent = '›';
+  next.setAttribute('aria-label', 'Câu tiếp theo');
+  next.addEventListener('click', () => setCurrent(state.currentIndex + 1));
+
+  nav.append(prev, indexButton, next);
+  return nav;
+}
+
+function openQuestionPicker() {
+  if (!$questionPicker || !$questionPickerList || document.body.classList.contains('mode-review')) return;
+
+  $questionPickerList.innerHTML = '';
+  state.questions.forEach((q, index) => {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'question-picker-item';
+    if (index === state.currentIndex) item.classList.add('current');
+
+    const answer = state.answers[q.id];
+    const answered = Boolean(answer) && !(q.type === 'ds' && answer === 'nnnn');
+    if (answered) item.classList.add('answered');
+
+    const number = document.createElement('span');
+    number.className = 'question-picker-number';
+    number.textContent = String(index + 1);
+
+    const label = document.createElement('span');
+    label.className = 'question-picker-label';
+    label.textContent = `Câu ${q.numberInSection}`;
+
+    const section = document.createElement('span');
+    section.className = 'question-picker-section';
+    section.textContent = q.type === 'abcd' ? 'Phần I' : q.type === 'ds' ? 'Phần II' : 'Phần III';
+
+    item.title = `${q.sectionTitle} — Câu ${q.numberInSection}`;
+    item.append(number, label, section);
+    item.addEventListener('click', () => {
+      setCurrent(index);
+      closeQuestionPicker();
+    });
+    $questionPickerList.appendChild(item);
+  });
+
+  $questionPicker.classList.remove('hidden');
+  document.getElementById('close-question-picker')?.focus();
+}
+
+function closeQuestionPicker() {
+  $questionPicker?.classList.add('hidden');
 }
 
 function setCurrent(idx) {
@@ -352,6 +440,15 @@ function setCurrent(idx) {
 }
 $prevQ.addEventListener('click', () => setCurrent(state.currentIndex - 1));
 $nextQ.addEventListener('click', () => setCurrent(state.currentIndex + 1));
+
+
+document.getElementById('close-question-picker')?.addEventListener('click', closeQuestionPicker);
+$questionPicker?.addEventListener('click', (event) => {
+  if (event.target === $questionPicker) closeQuestionPicker();
+});
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') closeQuestionPicker();
+});
 
 $submitBtn.addEventListener('click', () => {
   if (state.questions.length === 0) return;
