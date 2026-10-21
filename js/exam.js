@@ -227,35 +227,62 @@ function renderTLN(q) {
     const inp = document.createElement('input');
     inp.type = 'text';
     inp.inputMode = 'text';
-    inp.maxLength = 1;
+    // bỏ maxLength để user có thể gõ đè lên ký tự cũ (vd đổi '-' thành số)
     inp.className = 'tln-box';
     inp.value = current[i].trim();
     inp.dataset.idx = i;
 
     inp.addEventListener('input', () => {
       if (document.body.classList.contains('mode-review')) { inp.value = ''; return; }
+
+      // lấy ký tự cuối cùng user vừa gõ
       let v = inp.value.slice(-1);
-      if (v && !/^[0-9,]$/.test(v)) { inp.value = ''; return; }
+
+      // ô trống → sync và cho phép xoá
+      if (!v) {
+        inp.value = '';
+        syncTLN();
+        return;
+      }
+
+      // chỉ cho phép 0-9 , -
+      if (!/^[0-9,-]$/.test(v)) {
+        inp.value = '';
+        return;
+      }
+
+      // validate dấu '-': chỉ ở ô 0, tối đa 1 dấu
+      if (v === '-') {
+        if (i !== 0) { inp.value = ''; return; }
+        const others = inputs.map((el, j) => (j === i ? '' : el.value)).join('');
+        if (others.includes('-')) { inp.value = ''; return; }
+      }
+
+      // validate dấu ',': chỉ ở ô 1 hoặc 2, tối đa 1 dấu
       if (v === ',') {
         if (i !== 1 && i !== 2) { inp.value = ''; return; }
-        const others = inputs.map((el, j) => j === i ? '' : el.value).join('');
+        const others = inputs.map((el, j) => (j === i ? '' : el.value)).join('');
         if (others.includes(',')) { inp.value = ''; return; }
       }
+
+      // nếu user đang đổi ký tự ở ô 0 từ '-' sang số mà không xoá
+      // (vd ô 0 đang là '-', user gõ '5' → thành '5', hợp lệ)
+
       inp.value = v;
       syncTLN();
-      if (v && i < 3) inputs[i+1].focus();
+      if (v && i < 3) inputs[i + 1].focus();
     });
 
     inp.addEventListener('keydown', (e) => {
       if (e.key === 'Backspace' && !inp.value && i > 0) {
         e.preventDefault();
-        inputs[i-1].focus();
-        inputs[i-1].value = '';
+        inputs[i - 1].focus();
+        inputs[i - 1].value = '';
         syncTLN();
       } else if (e.key === 'ArrowLeft' && i > 0) {
-        inputs[i-1].focus();
+        inputs[i - 1].focus();
       } else if (e.key === 'ArrowRight' && i < 3) {
-        inputs[i+1].focus();
+        inputs[i + 1].focus();
       }
     });
 
