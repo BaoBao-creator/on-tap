@@ -1,6 +1,8 @@
-const VERSION = 'v2';
+const VERSION = 'v3';
 const CACHE_APP = `app-${VERSION}`;
 const CACHE_EXAM = 'exam-cache';
+
+const CDN_PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174';
 
 const APP_FILES = [
   './',
@@ -14,8 +16,8 @@ const APP_FILES = [
   './manifest.json',
   './icons/icon.svg',
   './icons/icon-maskable.svg',
-  './pdfjs/pdf.min.js',
-  './pdfjs/pdf.worker.min.js',
+  `${CDN_PDFJS}/pdf.min.js`,
+  `${CDN_PDFJS}/pdf.worker.min.js`,
 ];
 
 const EXAM_RAW_PREFIX = 'https://raw.githubusercontent.com/BaoBao-creator/on-tap/main/exam/';
@@ -24,7 +26,7 @@ const GH_API = 'https://api.github.com/repos/BaoBao-creator/on-tap';
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_APP)
-      .then(c => c.addAll(APP_FILES))
+      .then(c => c.addAll(APP_FILES).catch(err => console.warn('Precache partial:', err)))
       .then(() => self.skipWaiting())
   );
 });
@@ -50,7 +52,7 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(handleApiFetch(req));
     return;
   }
-  if (url.startsWith(self.location.origin)) {
+  if (url.startsWith(self.location.origin) || url.startsWith(CDN_PDFJS)) {
     event.respondWith(handleAppFetch(req));
   }
 });
