@@ -476,20 +476,71 @@ function reviewTLN(q, userAns, isCorrect) {
 }
 
 // ========== ZOOM CONTROL ==========
+let pdfZoomScale = 1;
+const pdfPaneEl = document.querySelector('.pdf-pane');
+const pdfContainerEl = document.getElementById('pdf-container');
 
-// 1) Chặn Ctrl+wheel zoom (desktop)
+function applyPdfZoom(scale) {
+  pdfZoomScale = Math.max(1, Math.min(4, scale));
+  if (pdfContainerEl) pdfContainerEl.style.zoom = pdfZoomScale;
+}
+
+// --- Desktop: Ctrl + lăn chuột ---
+// Trên PDF  → zoom PDF
+// Ngoài PDF → chặn hoàn toàn (không zoom UI)
 window.addEventListener('wheel', (e) => {
-  if (e.ctrlKey || e.metaKey) e.preventDefault();
+  if (!e.ctrlKey && !e.metaKey) return;
+  e.preventDefault();
+  if (e.target.closest('.pdf-pane')) {
+    const delta = e.deltaY < 0 ? 0.1 : -0.1;
+    applyPdfZoom(pdfZoomScale + delta);
+  }
 }, { passive: false });
 
-// 2) Chặn pinch zoom toàn trang (mobile) — chỉ cho phép trong .pdf-pane
+// --- Mobile: pinch trong PDF ---
+if (pdfPaneEl && pdfContainerEl) {
+  let startDist = 0;
+  let startScale = 1;
+
+  pdfPaneEl.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 2) {
+      startDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      startScale = pdfZoomScale;
+    }
+  }, { passive: true });
+
+  pdfPaneEl.addEventListener('touchmove', (e) => {
+    if (e.touches.length === 2 && startDist > 0) {
+      e.preventDefault();
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      applyPdfZoom(startScale * (dist / startDist));
+    }
+  }, { passive: false });
+
+  // Double-tap trong PDF → reset về 1×
+  let lastTap = 0;
+  pdfPaneEl.addEventListener('touchend', (e) => {
+    if (e.changedTouches.length === 1 && e.touches.length === 0) {
+      const now = Date.now();
+      if (now - lastTap < 300) applyPdfZoom(1);
+      lastTap = now;
+    }
+  }, { passive: true });
+}
+
+// --- Chặn pinch/double-tap zoom ngoài PDF (mobile) ---
 document.addEventListener('touchmove', (e) => {
   if (e.touches.length > 1 && !e.target.closest('.pdf-pane')) {
     e.preventDefault();
   }
 }, { passive: false });
 
-// 3) Chặn double-tap zoom (mobile)
 let lastTouchEnd = 0;
 document.addEventListener('touchend', (e) => {
   const now = Date.now();
@@ -498,57 +549,5 @@ document.addEventListener('touchend', (e) => {
   }
   lastTouchEnd = now;
 }, { passive: false });
-
-// 4) Pinch-zoom CHỈ cho PDF (UI giữ nguyên)
-let pdfZoomScale = 1;
-let pdfPinchStartDist = 0;
-let pdfPinchStartScale = 1;
-
-const pdfPaneEl = document.querySelector('.pdf-pane');
-const pdfContainerEl = document.getElementById('pdf-container');
-
-if (pdfPaneEl && pdfContainerEl) {
-  pdfPaneEl.addEventListener('touchstart', (e) => {
-    if (e.touches.length === 2) {
-      pdfPinchStartDist = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      );
-      pdfPinchStartScale = pdfZoomScale;
-    }
-  }, { passive: true });
-
-  pdfPaneEl.addEventListener('touchmove', (e) => {
-    if (e.touches.length === 2) {
-      e.preventDefault();
-      const dist = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      );
-      const ratio = dist / pdfPinchStartDist;
-      pdfZoomScale = Math.max(1, Math.min(4, pdfPinchStartScale * ratio));
-      pdfContainerEl.style.zoom = pdfZoomScale;
-    }
-  }, { passive: false });
-
-  // Double-tap trong PDF để reset zoom về 1
-  let pdfLastTap = 0;
-  pdfPaneEl.addEventListener('touchend', (e) => {
-    if (e.changedTouches.length === 1 && e.touches.length === 0) {
-      const now = Date.now();
-      if (now - pdfLastTap < 300) {
-        pdfZoomScale = 1;
-        pdfContainerEl.style.zoom = 1;
-      }
-      pdfLastTap = now;
-    }
-  }, { passive: true });
-}
-
-// Reset zoom khi render PDF mới
-const origRenderPdf = renderPdf;
-// (Không ghi đè — chỉ reset khi vào bài mới)
-pdfZoomScale = 1;
-if (pdfContainerEl) pdfContainerEl.style.zoom = 1;
 
 init();
