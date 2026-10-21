@@ -519,6 +519,49 @@ function applyPdfZoom(scale) {
   if (label) label.textContent = Math.round(pdfZoomScale * 100) + '%';
 }
 
+
+// Desktop: hold the left mouse button and drag to pan around the PDF.
+if ($pdfContainer) {
+  let panStart = null;
+
+  $pdfContainer.addEventListener('pointerdown', (e) => {
+    if (e.pointerType !== 'mouse' || e.button !== 0) return;
+    panStart = {
+      pointerId: e.pointerId,
+      x: e.clientX,
+      y: e.clientY,
+      scrollLeft: $pdfContainer.scrollLeft,
+      scrollTop: $pdfContainer.scrollTop,
+    };
+    $pdfContainer.classList.add('is-panning');
+    e.preventDefault();
+    try { $pdfContainer.setPointerCapture(e.pointerId); } catch (_) {}
+  });
+
+  $pdfContainer.addEventListener('pointermove', (e) => {
+    if (!panStart || e.pointerId !== panStart.pointerId) return;
+    $pdfContainer.scrollLeft = panStart.scrollLeft - (e.clientX - panStart.x);
+    $pdfContainer.scrollTop = panStart.scrollTop - (e.clientY - panStart.y);
+    e.preventDefault();
+  });
+
+  const endMousePan = (e) => {
+    if (!panStart || (e && e.pointerId !== panStart.pointerId)) return;
+    const pointerId = panStart.pointerId;
+    panStart = null;
+    $pdfContainer.classList.remove('is-panning');
+    try {
+      if ($pdfContainer.hasPointerCapture(pointerId)) {
+        $pdfContainer.releasePointerCapture(pointerId);
+      }
+    } catch (_) {}
+  };
+
+  $pdfContainer.addEventListener('pointerup', endMousePan);
+  $pdfContainer.addEventListener('pointercancel', endMousePan);
+  $pdfContainer.addEventListener('lostpointercapture', endMousePan);
+}
+
 // Re-fit the unscaled page width to the available pane width after resizing.
 if (window.ResizeObserver) {
   const pdfResizeObserver = new ResizeObserver(() => {
