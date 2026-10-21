@@ -4,7 +4,6 @@ const CACHE_EXAM = 'exam-cache';
 const LS_EXAM_LIST = 'exam_list';
 const lsProgressKey = (name) => `progress_${name}`;
 
-// ------- danh sách đề (cache) -------
 export function saveExamList(list) {
   localStorage.setItem(LS_EXAM_LIST, JSON.stringify(list));
 }
@@ -13,7 +12,6 @@ export function getCachedExamList() {
   catch { return []; }
 }
 
-// ------- download / cache -------
 export async function isDownloaded(name) {
   const { pdf, json } = examUrls(name);
   const cache = await caches.open(CACHE_EXAM);
@@ -30,8 +28,8 @@ export async function downloadExam(name) {
   if (!pdfRes.ok) throw new Error('Không tải được PDF (' + pdfRes.status + ')');
   if (!jsonRes.ok) throw new Error('Không tải được answers.json (' + jsonRes.status + ')');
   const cache = await caches.open(CACHE_EXAM);
-  await cache.put(pdf, pdfRes);
-  await cache.put(json, jsonRes);
+  await cache.put(pdf, pdfRes.clone());
+  await cache.put(json, jsonRes.clone());
 }
 
 export async function deleteExam(name) {
@@ -57,7 +55,6 @@ export async function getAllDownloaded() {
   return [...names];
 }
 
-// ------- load exam data -------
 export async function loadExamData(name) {
   const { pdf, json } = examUrls(name);
   const cache = await caches.open(CACHE_EXAM);
@@ -74,11 +71,10 @@ export async function loadExamData(name) {
     pdfRes = net;
   }
   const answers = await jsonRes.json();
-  const pdfData = await pdfRes.arrayBuffer();
-  return { answers, pdfData };
+  const pdfBuffer = await pdfRes.arrayBuffer();
+  return { answers, pdfBuffer };
 }
 
-// ------- progress -------
 export function saveProgress(name, data) {
   localStorage.setItem(lsProgressKey(name), JSON.stringify(data));
 }
