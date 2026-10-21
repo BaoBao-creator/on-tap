@@ -74,9 +74,8 @@ export async function loadExamData(name) {
     pdfRes = net;
   }
   const answers = await jsonRes.json();
-  const pdfBlob = await pdfRes.blob();
-  const pdfUrl = URL.createObjectURL(pdfBlob);
-  return { answers, pdfUrl };
+  const pdfData = await pdfRes.arrayBuffer();
+  return { answers, pdfData };
 }
 
 // ------- progress -------
