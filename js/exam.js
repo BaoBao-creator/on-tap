@@ -24,6 +24,7 @@ const $result = document.getElementById('result-overlay');
 const $reviewActions = document.getElementById('review-actions');
 const $pdfContainer = document.getElementById('pdf-container');
 const $pdfZoomWrap = document.getElementById('pdf-zoom-wrap');
+const $pdfZoomContent = document.getElementById('pdf-zoom-content');
 
 const state = {
   questions: [],
@@ -79,21 +80,14 @@ async function init() {
 }
 
 async function renderPdf(pdfBuffer) {
-  $pdfZoomWrap.innerHTML = '<div class="pdf-loading">Đang hiển thị đề...</div>';
+  $pdfZoomContent.innerHTML = '<div class="pdf-loading">Đang hiển thị đề...</div>';
   try {
     if (!window.pdfjsLib) throw new Error('Thiếu pdf.js (chưa tải được từ CDN)');
 
     const task = window.pdfjsLib.getDocument({ data: pdfBuffer });
     const pdf = await task.promise;
-    $pdfZoomWrap.innerHTML = '';
-
-    pageCanvases.clear();
-    strokeHistory.length = 0;
-    drawEnabled = false;
-    document.body.classList.remove('draw-mode');
-    const toggleBtn = document.getElementById('draw-toggle');
-    if (toggleBtn) toggleBtn.classList.remove('active');
-    applyPdfZoom(1);
+    $pdfZoomContent.innerHTML = '';
+    $pdfZoomContent.style.width = `${getPdfViewportWidth()}px`;
 
     const renderScale = 2;
     for (let i = 1; i <= pdf.numPages; i++) {
@@ -108,27 +102,21 @@ async function renderPdf(pdfBuffer) {
       pageCanvas.height = Math.floor(viewport.height);
       pageCanvas.className = 'pdf-page';
 
-      const inkCanvas = document.createElement('canvas');
-      inkCanvas.className = 'pdf-ink';
-      inkCanvas.width = pageCanvas.width;
-      inkCanvas.height = pageCanvas.height;
-
       wrapper.appendChild(pageCanvas);
-      wrapper.appendChild(inkCanvas);
-      $pdfZoomWrap.appendChild(wrapper);
+      $pdfZoomContent.appendChild(wrapper);
 
       await page.render({
         canvasContext: pageCanvas.getContext('2d'),
         viewport,
       }).promise;
-
-      pageCanvases.set(i, { pageCanvas, inkCanvas, wrapper });
-      attachDrawHandlers(i, inkCanvas);
     }
+
+    applyPdfZoom(1);
   } catch (err) {
     console.error('PDF render error:', err);
-    $pdfZoomWrap.innerHTML =
+    $pdfZoomContent.innerHTML =
       '<div class="pdf-loading">Không hiển thị được PDF: ' + err.message + '</div>';
+    applyPdfZoom(pdfZoomScale);
   }
 }
 
@@ -500,156 +488,86 @@ function reviewTLN(q, userAns, isCorrect) {
   return wrap;
 }
 
-// ========== ZOOM + DRAW ==========
+// ========== PDF ZOOM ==========
 let pdfZoomScale = 1;
 const pdfPaneEl = document.querySelector('.pdf-pane');
+const PDF_ZOOM_MIN = 0.5;
+const PDF_ZOOM_MAX = 6;
 
-// --- Draw state ---
-const DRAW_COLORS = ['#ef4444', '#0ea5e9', '#22c55e', '#eab308', '#111827'];
-let drawColorIdx = 0;
-let drawColor = DRAW_COLORS[0];
-let drawEnabled = false;
-let strokeHistory = [];       // [{ page, color, points: [{x,y}...] }]
-const pageCanvases = new Map(); // pageIndex -> { pageCanvas, inkCanvas, wrapper }
+function getPdfViewportWidth() {
+  const style = getComputedStyle($pdfContainer);
+  const horizontalPadding =
+    (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0);
+  return Math.max(1, $pdfContainer.clientWidth - horizontalPadding);
+}
 
 function applyPdfZoom(scale) {
-  pdfZoomScale = Math.max(1, Math.min(4, scale));
-  if ($pdfZoomWrap) $pdfZoomWrap.style.zoom = pdfZoomScale;
+  pdfZoomScale = Math.max(PDF_ZOOM_MIN, Math.min(PDF_ZOOM_MAX, scale));
+
+  if ($pdfZoomWrap && $pdfZoomContent) {
+    const baseWidth = $pdfZoomContent.offsetWidth || getPdfViewportWidth();
+    const baseHeight = $pdfZoomContent.scrollHeight;
+    $pdfZoomContent.style.transform = `scale(${pdfZoomScale})`;
+
+    // CSS transforms do not expand the scrolling layout, so size the outer
+    // wrapper explicitly to the scaled document dimensions.
+    $pdfZoomWrap.style.width = `${Math.ceil(baseWidth * pdfZoomScale)}px`;
+    $pdfZoomWrap.style.height = `${Math.ceil(baseHeight * pdfZoomScale)}px`;
+  }
+
   const label = document.getElementById('zoom-label');
   if (label) label.textContent = Math.round(pdfZoomScale * 100) + '%';
 }
 
-function redrawPageFromHistory(pageIndex) {
-  const info = pageCanvases.get(pageIndex);
-  if (!info) return;
-  const { inkCanvas } = info;
-  const ctx = inkCanvas.getContext('2d');
-  ctx.clearRect(0, 0, inkCanvas.width, inkCanvas.height);
-  const w = inkCanvas.width, h = inkCanvas.height;
-  for (const s of strokeHistory) {
-    if (s.page !== pageIndex) continue;
-    ctx.strokeStyle = s.color;
-    ctx.lineWidth = Math.max(2, w / 400);
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.beginPath();
-    s.points.forEach((p, i) => {
-      const x = p.x * w, y = p.y * h;
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    });
-    ctx.stroke();
-  }
-}
-
-function attachDrawHandlers(pageIndex, inkCanvas) {
-  let drawing = false;
-  let currentPts = null;
-
-  function getPoint(e) {
-    const rect = inkCanvas.getBoundingClientRect();
-    return {
-      x: (e.clientX - rect.left) / rect.width,
-      y: (e.clientY - rect.top) / rect.height,
-    };
-  }
-  function drawSeg(a, b, color) {
-    const ctx = inkCanvas.getContext('2d');
-    const w = inkCanvas.width, h = inkCanvas.height;
-    ctx.strokeStyle = color;
-    ctx.lineWidth = Math.max(2, w / 400);
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.beginPath();
-    ctx.moveTo(a.x * w, a.y * h);
-    ctx.lineTo(b.x * w, b.y * h);
-    ctx.stroke();
-  }
-
-  inkCanvas.addEventListener('pointerdown', (e) => {
-    if (!drawEnabled) return;
-    e.preventDefault();
-    try { inkCanvas.setPointerCapture(e.pointerId); } catch (_) {}
-    drawing = true;
-    currentPts = [getPoint(e)];
+// Re-fit the unscaled page width to the available pane width after resizing.
+if (window.ResizeObserver) {
+  const pdfResizeObserver = new ResizeObserver(() => {
+    if (!$pdfZoomContent || !$pdfZoomContent.children.length) return;
+    $pdfZoomContent.style.width = `${getPdfViewportWidth()}px`;
+    applyPdfZoom(pdfZoomScale);
   });
-  inkCanvas.addEventListener('pointermove', (e) => {
-    if (!drawing) return;
-    e.preventDefault();
-    const pt = getPoint(e);
-    drawSeg(currentPts[currentPts.length - 1], pt, drawColor);
-    currentPts.push(pt);
-  });
-  const endDraw = () => {
-    if (!drawing) return;
-    drawing = false;
-    if (currentPts && currentPts.length > 1) {
-      strokeHistory.push({ page: pageIndex, color: drawColor, points: currentPts });
-    }
-    currentPts = null;
-  };
-  inkCanvas.addEventListener('pointerup', endDraw);
-  inkCanvas.addEventListener('pointercancel', endDraw);
-  inkCanvas.addEventListener('pointerleave', endDraw);
+  pdfResizeObserver.observe($pdfContainer);
 }
 
-function toggleDrawMode() {
-  drawEnabled = !drawEnabled;
-  document.body.classList.toggle('draw-mode', drawEnabled);
-  const btn = document.getElementById('draw-toggle');
-  if (btn) btn.classList.toggle('active', drawEnabled);
-}
-function cycleDrawColor() {
-  drawColorIdx = (drawColorIdx + 1) % DRAW_COLORS.length;
-  drawColor = DRAW_COLORS[drawColorIdx];
-  const btn = document.getElementById('draw-color');
-  if (btn) btn.style.color = drawColor;
-}
-function undoLastStroke() {
-  if (!strokeHistory.length) return;
-  const last = strokeHistory.pop();
-  redrawPageFromHistory(last.page);
-}
-function clearAllStrokes() {
-  const pages = new Set(strokeHistory.map(s => s.page));
-  strokeHistory.length = 0;
-  pages.forEach(p => redrawPageFromHistory(p));
-}
-
-// --- Desktop: Ctrl + lăn chuột ---
+// Desktop: Ctrl/Cmd + mouse wheel zooms only while the pointer is over the PDF pane.
 window.addEventListener('wheel', (e) => {
-  if (!e.ctrlKey && !e.metaKey) return;
+  if (!e.target.closest('.pdf-pane') || (!e.ctrlKey && !e.metaKey)) return;
   e.preventDefault();
-  if (e.target.closest('.pdf-pane')) {
-    const delta = e.deltaY < 0 ? 0.1 : -0.1;
-    applyPdfZoom(pdfZoomScale + delta);
-  }
+  applyPdfZoom(pdfZoomScale + (e.deltaY < 0 ? 0.1 : -0.1));
 }, { passive: false });
 
-// --- Mobile: pinch trong PDF ---
+// Mobile: pinch-to-zoom in the PDF pane.
 if (pdfPaneEl) {
   let startDist = 0;
   let startScale = 1;
+
   pdfPaneEl.addEventListener('touchstart', (e) => {
-    if (e.touches.length === 2) {
-      startDist = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      );
-      startScale = pdfZoomScale;
-    }
+    if (e.touches.length !== 2) return;
+    startDist = Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY
+    );
+    startScale = pdfZoomScale;
   }, { passive: true });
+
   pdfPaneEl.addEventListener('touchmove', (e) => {
-    if (e.touches.length === 2 && startDist > 0 && !drawEnabled) {
-      e.preventDefault();
-      const dist = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      );
-      applyPdfZoom(startScale * (dist / startDist));
-    }
+    if (e.touches.length !== 2 || startDist <= 0) return;
+    e.preventDefault();
+    const dist = Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY
+    );
+    applyPdfZoom(startScale * (dist / startDist));
   }, { passive: false });
+
+  const resetPinch = () => { startDist = 0; };
+  pdfPaneEl.addEventListener('touchend', resetPinch, { passive: true });
+  pdfPaneEl.addEventListener('touchcancel', resetPinch, { passive: true });
 }
+
+document.getElementById('zoom-in').addEventListener('click', () => applyPdfZoom(pdfZoomScale + 0.2));
+document.getElementById('zoom-out').addEventListener('click', () => applyPdfZoom(pdfZoomScale - 0.2));
+document.getElementById('zoom-reset').addEventListener('click', () => applyPdfZoom(1));
 
 // --- Chặn pinch/double-tap zoom ngoài PDF (mobile) ---
 document.addEventListener('touchmove', (e) => {
@@ -670,9 +588,5 @@ document.addEventListener('touchend', (e) => {
 document.getElementById('zoom-in').addEventListener('click', () => applyPdfZoom(pdfZoomScale + 0.2));
 document.getElementById('zoom-out').addEventListener('click', () => applyPdfZoom(pdfZoomScale - 0.2));
 document.getElementById('zoom-reset').addEventListener('click', () => applyPdfZoom(1));
-document.getElementById('draw-toggle').addEventListener('click', toggleDrawMode);
-document.getElementById('draw-color').addEventListener('click', cycleDrawColor);
-document.getElementById('draw-undo').addEventListener('click', undoLastStroke);
-document.getElementById('draw-clear').addEventListener('click', clearAllStrokes);
 
 init();
