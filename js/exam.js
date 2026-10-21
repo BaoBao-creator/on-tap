@@ -27,7 +27,7 @@ const state = {
   answers: {},
   currentIndex: 0,
   totalCorrect: 0,
-  pdfUrl: null,
+  pdfData: null,
 };
 
 // -------- net status --------
