@@ -33,6 +33,29 @@ const state = {
   totalCorrect: 0,
 };
 
+/**
+ * Some mobile browsers/PWA shells restore their viewport and media-query state
+ * only after returning from the background. Use both viewport width and the
+ * mobile user-agent signal, then re-sync on app/page lifecycle events.
+ */
+function syncResponsiveLayout() {
+  const isMobileUA = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+  const isNarrowViewport =
+    window.innerWidth <= 900 ||
+    window.screen.width <= 900 ||
+    window.matchMedia('(max-width: 900px)').matches;
+
+  document.body.classList.toggle('mobile-layout', isMobileUA || isNarrowViewport);
+}
+
+syncResponsiveLayout();
+window.addEventListener('resize', syncResponsiveLayout, { passive: true });
+window.addEventListener('orientationchange', syncResponsiveLayout, { passive: true });
+window.addEventListener('pageshow', syncResponsiveLayout);
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) syncResponsiveLayout();
+});
+
 function updateNetStatus() {
   const online = navigator.onLine;
   $net.classList.toggle('online', online);
@@ -627,9 +650,5 @@ document.addEventListener('touchend', (e) => {
   }
   lastTouchEnd = now;
 }, { passive: false });
-
-document.getElementById('zoom-in').addEventListener('click', () => applyPdfZoom(pdfZoomScale + 0.2));
-document.getElementById('zoom-out').addEventListener('click', () => applyPdfZoom(pdfZoomScale - 0.2));
-document.getElementById('zoom-reset').addEventListener('click', () => applyPdfZoom(1));
 
 init();
