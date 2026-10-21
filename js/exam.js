@@ -2,15 +2,16 @@ import {
   isDownloaded, downloadExam, loadExamData,
   saveProgress, loadProgress, clearProgress
 } from './store.js';
+
 if (window.pdfjsLib) {
-  window.pdfjsLib.GlobalWorkerOptions.workerSrc = './pdfjs/pdf.worker.min.js';
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 }
 
 const params = new URLSearchParams(location.search);
 const examName = params.get('de');
 
 const $title = document.getElementById('exam-title');
-const $pdf = document.getElementById('pdf-viewer');
 const $answerList = document.getElementById('answer-list');
 const $submitBtn = document.getElementById('submit-btn');
 const $prevQ = document.getElementById('prev-q');
@@ -21,16 +22,15 @@ const $loading = document.getElementById('loading-overlay');
 const $loadingText = document.getElementById('loading-text');
 const $result = document.getElementById('result-overlay');
 const $reviewActions = document.getElementById('review-actions');
+const $pdfContainer = document.getElementById('pdf-container');
 
 const state = {
   questions: [],
   answers: {},
   currentIndex: 0,
   totalCorrect: 0,
-  pdfData: null,
 };
 
-// -------- net status --------
 function updateNetStatus() {
   const online = navigator.onLine;
   $net.classList.toggle('online', online);
@@ -41,35 +41,28 @@ window.addEventListener('online', updateNetStatus);
 window.addEventListener('offline', updateNetStatus);
 updateNetStatus();
 
-// -------- init --------
 async function init() {
-  if (!examName) {
-    location.replace('./index.html');
-    return;
-  }
+  if (!examName) { location.replace('./index.html'); return; }
   $title.textContent = examName;
 
   try {
     if (!(await isDownloaded(examName))) {
-      if (!navigator.onLine) {
-        throw new Error('Đề chưa được tải về máy và hiện không có mạng.');
-      }
+      if (!navigator.onLine) throw new Error('Đề chưa tải và đang không có mạng.');
       $loadingText.textContent = 'Đang tải đề về máy...';
       await downloadExam(examName);
     }
 
-  $loadingText.textContent = 'Đang mở đề...';
-  const { answers, pdfData } = await loadExamData(examName);
-  state.pdfData = pdfData;
-  
-  buildQuestions(answers);
-  restoreProgress();
-  render();
-  
-  $loadingText.textContent = 'Đang hiển thị đề...';
-  await renderPdf(pdfData);
-  
-  $loading.classList.add('hidden');
+    $loadingText.textContent = 'Đang mở đề...';
+    const { answers, pdfBuffer } = await loadExamData(examName);
+
+    buildQuestions(answers);
+    restoreProgress();
+    render();
+
+    $loadingText.textContent = 'Đang hiển thị đề...';
+    await renderPdf(pdfBuffer);
+
+    $loading.classList.add('hidden');
   } catch (err) {
     console.error(err);
     $loadingText.textContent = 'Lỗi: ' + err.message;
@@ -84,7 +77,36 @@ async function init() {
   }
 }
 
-// -------- build questions --------
+async function renderPdf(pdfBuffer) {
+  $pdfContainer.innerHTML = '<div class="pdf-loading">Đang hiển thị đề...</div>';
+  try {
+    if (!window.pdfjsLib) throw new Error('Thiếu pdf.js (chưa tải được từ CDN)');
+
+    const task = window.pdfjsLib.getDocument({ data: pdfBuffer });
+    const pdf = await task.promise;
+    $pdfContainer.innerHTML = '';
+
+    const renderScale = 2;
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const viewport = page.getViewport({ scale: renderScale });
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.floor(viewport.width);
+      canvas.height = Math.floor(viewport.height);
+      canvas.className = 'pdf-page';
+      $pdfContainer.appendChild(canvas);
+      await page.render({
+        canvasContext: canvas.getContext('2d'),
+        viewport,
+      }).promise;
+    }
+  } catch (err) {
+    console.error('PDF render error:', err);
+    $pdfContainer.innerHTML =
+      '<div class="pdf-loading">Không hiển thị được PDF: ' + err.message + '</div>';
+  }
+}
+
 function buildQuestions(answers) {
   const questions = [];
   const sections = [
@@ -92,7 +114,6 @@ function buildQuestions(answers) {
     { key: 'ds',   title: 'Phần II: Đúng / Sai' },
     { key: 'tln',  title: 'Phần III: Trả lời ngắn' },
   ];
-
   for (const sec of sections) {
     const data = answers[sec.key];
     if (!data || typeof data !== 'object') continue;
@@ -106,7 +127,6 @@ function buildQuestions(answers) {
         id: `${sec.key}-${k}`,
         type: sec.key,
         sectionTitle: sec.title,
-        sectionKey: sec.key,
         numberInSection: k,
         correct: String(data[k]),
         isFirstInSection: idx === 0,
@@ -124,11 +144,8 @@ function restoreProgress() {
   $reviewActions.style.display = '';
 }
 
-function persist() {
-  saveProgress(examName, { answers: state.answers });
-}
+function persist() { saveProgress(examName, { answers: state.answers }); }
 
-// -------- render --------
 function render() {
   $answerList.innerHTML = '';
   state.questions.forEach((q, i) => {
@@ -228,47 +245,25 @@ function renderTLN(q) {
     const inp = document.createElement('input');
     inp.type = 'text';
     inp.inputMode = 'text';
-    // bỏ maxLength để user có thể gõ đè lên ký tự cũ (vd đổi '-' thành số)
     inp.className = 'tln-box';
     inp.value = current[i].trim();
     inp.dataset.idx = i;
 
     inp.addEventListener('input', () => {
       if (document.body.classList.contains('mode-review')) { inp.value = ''; return; }
-
-      // lấy ký tự cuối cùng user vừa gõ
       let v = inp.value.slice(-1);
-
-      // ô trống → sync và cho phép xoá
-      if (!v) {
-        inp.value = '';
-        syncTLN();
-        return;
-      }
-
-      // chỉ cho phép 0-9 , -
-      if (!/^[0-9,-]$/.test(v)) {
-        inp.value = '';
-        return;
-      }
-
-      // validate dấu '-': chỉ ở ô 0, tối đa 1 dấu
+      if (!v) { inp.value = ''; syncTLN(); return; }
+      if (!/^[0-9,-]$/.test(v)) { inp.value = ''; return; }
       if (v === '-') {
         if (i !== 0) { inp.value = ''; return; }
-        const others = inputs.map((el, j) => (j === i ? '' : el.value)).join('');
+        const others = inputs.map((el, j) => j === i ? '' : el.value).join('');
         if (others.includes('-')) { inp.value = ''; return; }
       }
-
-      // validate dấu ',': chỉ ở ô 1 hoặc 2, tối đa 1 dấu
       if (v === ',') {
         if (i !== 1 && i !== 2) { inp.value = ''; return; }
-        const others = inputs.map((el, j) => (j === i ? '' : el.value)).join('');
+        const others = inputs.map((el, j) => j === i ? '' : el.value).join('');
         if (others.includes(',')) { inp.value = ''; return; }
       }
-
-      // nếu user đang đổi ký tự ở ô 0 từ '-' sang số mà không xoá
-      // (vd ô 0 đang là '-', user gõ '5' → thành '5', hợp lệ)
-
       inp.value = v;
       syncTLN();
       if (v && i < 3) inputs[i + 1].focus();
@@ -280,11 +275,8 @@ function renderTLN(q) {
         inputs[i - 1].focus();
         inputs[i - 1].value = '';
         syncTLN();
-      } else if (e.key === 'ArrowLeft' && i > 0) {
-        inputs[i - 1].focus();
-      } else if (e.key === 'ArrowRight' && i < 3) {
-        inputs[i + 1].focus();
-      }
+      } else if (e.key === 'ArrowLeft' && i > 0) inputs[i - 1].focus();
+      else if (e.key === 'ArrowRight' && i < 3) inputs[i + 1].focus();
     });
 
     inputs.push(inp);
@@ -302,11 +294,9 @@ function renderTLN(q) {
     else delete state.answers[q.id];
     persist();
   }
-
   return wrap;
 }
 
-// -------- mobile nav --------
 function updateMobileNav() {
   $qIndex.textContent = `${state.currentIndex + 1} / ${state.questions.length || 1}`;
   $prevQ.disabled = state.currentIndex === 0;
@@ -327,7 +317,6 @@ function setCurrent(idx) {
 $prevQ.addEventListener('click', () => setCurrent(state.currentIndex - 1));
 $nextQ.addEventListener('click', () => setCurrent(state.currentIndex + 1));
 
-// -------- submit --------
 $submitBtn.addEventListener('click', () => {
   if (state.questions.length === 0) return;
   const unanswered = state.questions.filter(q => !state.answers[q.id]).length;
@@ -338,7 +327,6 @@ $submitBtn.addEventListener('click', () => {
     if (state.answers[q.id] === q.correct) correct++;
   }
   state.totalCorrect = correct;
-
   const total = state.questions.length;
   const pct = total ? correct / total : 0;
   let cls = 'result-red';
@@ -374,7 +362,6 @@ function retry() {
   render();
 }
 
-// -------- review --------
 function enterReview() {
   document.body.classList.add('mode-review');
   $submitBtn.style.display = 'none';
@@ -384,7 +371,6 @@ function enterReview() {
   state.questions.forEach((q) => {
     const block = document.createElement('div');
     block.className = 'question-block current';
-
     const label = document.createElement('div');
     label.className = 'question-label';
     label.textContent = `Câu ${q.numberInSection}`;
@@ -392,7 +378,6 @@ function enterReview() {
 
     const userAns = state.answers[q.id];
     const isCorrect = userAns === q.correct;
-
     if (q.type === 'abcd') block.appendChild(reviewABCD(q, userAns));
     else if (q.type === 'ds') block.appendChild(reviewDS(q, userAns));
     else block.appendChild(reviewTLN(q, userAns, isCorrect));
@@ -433,7 +418,6 @@ function reviewDS(q, userAns) {
     note.textContent = 'Chưa làm';
     wrap.appendChild(note);
   }
-
   for (let i = 0; i < 4; i++) {
     const el = document.createElement('div');
     el.className = 'option-btn ds-btn';
@@ -464,7 +448,6 @@ function reviewDS(q, userAns) {
 function reviewTLN(q, userAns, isCorrect) {
   const wrap = document.createElement('div');
   wrap.className = 'tln-review';
-
   if (!userAns) {
     const note = document.createElement('div');
     note.className = 'review-note';
@@ -490,44 +473,6 @@ function reviewTLN(q, userAns, isCorrect) {
     wrap.appendChild(right);
   }
   return wrap;
-}
-
-async function renderPdf(data) {
-  const container = document.getElementById('pdf-container');
-  container.innerHTML = '<div class="pdf-loading">Đang hiển thị đề...</div>';
-
-  try {
-    if (!window.pdfjsLib) {
-      throw new Error('Chưa tải pdf.js (thiếu file pdfjs/pdf.min.js)');
-    }
-    const task = window.pdfjsLib.getDocument({ data });
-    const pdf = await task.promise;
-    container.innerHTML = '';
-
-    // Render ở scale 2 → nét trên mọi màn hình, CSS tự co lại
-    const renderScale = 2;
-
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const baseViewport = page.getViewport({ scale: 1 });
-      const viewport = page.getViewport({ scale: renderScale });
-
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.floor(viewport.width);
-      canvas.height = Math.floor(viewport.height);
-      canvas.className = 'pdf-page';
-      container.appendChild(canvas);
-
-      await page.render({
-        canvasContext: canvas.getContext('2d'),
-        viewport,
-      }).promise;
-    }
-  } catch (err) {
-    console.error('PDF render error:', err);
-    container.innerHTML =
-      '<div class="pdf-loading">Không hiển thị được PDF: ' + err.message + '</div>';
-  }
 }
 
 init();
