@@ -84,10 +84,6 @@ async function init() {
   }
 }
 
-window.addEventListener('beforeunload', () => {
-  if (state.pdfUrl) URL.revokeObjectURL(state.pdfUrl);
-});
-
 // -------- build questions --------
 function buildQuestions(answers) {
   const questions = [];
@@ -494,6 +490,44 @@ function reviewTLN(q, userAns, isCorrect) {
     wrap.appendChild(right);
   }
   return wrap;
+}
+
+async function renderPdf(data) {
+  const container = document.getElementById('pdf-container');
+  container.innerHTML = '<div class="pdf-loading">Đang hiển thị đề...</div>';
+
+  try {
+    if (!window.pdfjsLib) {
+      throw new Error('Chưa tải pdf.js (thiếu file pdfjs/pdf.min.js)');
+    }
+    const task = window.pdfjsLib.getDocument({ data });
+    const pdf = await task.promise;
+    container.innerHTML = '';
+
+    // Render ở scale 2 → nét trên mọi màn hình, CSS tự co lại
+    const renderScale = 2;
+
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const baseViewport = page.getViewport({ scale: 1 });
+      const viewport = page.getViewport({ scale: renderScale });
+
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.floor(viewport.width);
+      canvas.height = Math.floor(viewport.height);
+      canvas.className = 'pdf-page';
+      container.appendChild(canvas);
+
+      await page.render({
+        canvasContext: canvas.getContext('2d'),
+        viewport,
+      }).promise;
+    }
+  } catch (err) {
+    console.error('PDF render error:', err);
+    container.innerHTML =
+      '<div class="pdf-loading">Không hiển thị được PDF: ' + err.message + '</div>';
+  }
 }
 
 init();
