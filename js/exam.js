@@ -103,6 +103,99 @@ async function init() {
 let pdfPageObserver = null;
 let pdfPageRecords = [];
 
+function createPdfPlaceholder(pageNumber) {
+  const placeholder = document.createElement('div');
+  placeholder.className = 'pdf-page-placeholder';
+  placeholder.setAttribute('aria-label', 'Đang tải trang ' + pageNumber);
+  placeholder.setAttribute('aria-busy', 'true');
+
+  const sheet = document.createElement('div');
+  sheet.className = 'pdf-skeleton-sheet';
+  sheet.setAttribute('aria-hidden', 'true');
+
+  const heading = document.createElement('span');
+  heading.className = 'pdf-skeleton-bar pdf-skeleton-heading';
+  sheet.appendChild(heading);
+
+  const subheading = document.createElement('span');
+  subheading.className = 'pdf-skeleton-bar pdf-skeleton-subheading';
+  sheet.appendChild(subheading);
+
+  const figure = document.createElement('span');
+  figure.className = 'pdf-skeleton-figure';
+  sheet.appendChild(figure);
+
+  [100, 94, 82, 97, 89, 68, 100, 92, 76, 96, 84].forEach((width) => {
+    const line = document.createElement('span');
+    line.className = 'pdf-skeleton-line';
+    line.style.width = width + '%';
+    sheet.appendChild(line);
+  });
+
+  const label = document.createElement('span');
+  label.className = 'pdf-skeleton-label';
+  label.textContent = 'Đang tải trang ' + pageNumber + '…';
+
+  placeholder.append(sheet, label);
+  return placeholder;
+}
+
+const overlayTimers = new WeakMap();
+
+function showAnimatedOverlay(overlay) {
+  if (!overlay) return;
+  const oldTimer = overlayTimers.get(overlay);
+  if (oldTimer) window.clearTimeout(oldTimer);
+
+  overlay.classList.add('hidden');
+  overlay.classList.remove('is-closing', 'is-opening');
+  void overlay.offsetWidth;
+  overlay.classList.remove('hidden');
+  overlay.classList.add('is-opening');
+
+  const timer = window.setTimeout(() => {
+    overlay.classList.remove('is-opening');
+    overlayTimers.delete(overlay);
+  }, 260);
+  overlayTimers.set(overlay, timer);
+}
+
+function hideAnimatedOverlay(overlay) {
+  if (!overlay || overlay.classList.contains('hidden')) return;
+  const oldTimer = overlayTimers.get(overlay);
+  if (oldTimer) window.clearTimeout(oldTimer);
+
+  overlay.classList.remove('is-opening');
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reducedMotion) {
+    overlay.classList.add('hidden');
+    overlay.classList.remove('is-closing');
+    overlayTimers.delete(overlay);
+    return;
+  }
+
+  overlay.classList.remove('is-closing');
+  void overlay.offsetWidth;
+  overlay.classList.add('is-closing');
+  const timer = window.setTimeout(() => {
+    overlay.classList.add('hidden');
+    overlay.classList.remove('is-closing');
+    overlayTimers.delete(overlay);
+  }, 190);
+  overlayTimers.set(overlay, timer);
+}
+
+function playQuestionEntrance(element) {
+  if (!element || !document.body.classList.contains('mobile-layout') ||
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  element.classList.remove('question-enter');
+  void element.offsetWidth;
+  element.classList.add('question-enter');
+  element.addEventListener('animationend', (event) => {
+    if (event.target === element) element.classList.remove('question-enter');
+  }, { once: true });
+}
+
 async function renderPdfPage(record) {
   if (!record || record.rendered || record.rendering) return;
   record.rendering = true;
@@ -164,10 +257,7 @@ function releasePdfPage(record) {
   if (!record || !record.rendered || !record.canvas) return;
   record.canvas.width = 0;
   record.canvas.height = 0;
-  const placeholder = document.createElement('div');
-  placeholder.className = 'pdf-page-placeholder';
-  placeholder.textContent = 'Trang ' + record.wrapper.dataset.pageNumber;
-  record.wrapper.replaceChildren(placeholder);
+  record.wrapper.replaceChildren(createPdfPlaceholder(record.wrapper.dataset.pageNumber));
   record.canvas = null;
   record.rendered = false;
 }
@@ -201,10 +291,7 @@ async function renderPdf(pdfBuffer) {
       wrapper.style.aspectRatio = pageSize.width + ' / ' + pageSize.height;
       wrapper.setAttribute('aria-label', 'Trang ' + i + ' trên ' + pdf.numPages);
 
-      const placeholder = document.createElement('div');
-      placeholder.className = 'pdf-page-placeholder';
-      placeholder.textContent = 'Trang ' + i;
-      wrapper.appendChild(placeholder);
+      wrapper.appendChild(createPdfPlaceholder(i));
       $pdfZoomContent.appendChild(wrapper);
 
       records.push({
@@ -582,12 +669,12 @@ function openQuestionPicker() {
     $questionPickerList.appendChild(item);
   });
 
-  $questionPicker.classList.remove('hidden');
+  showAnimatedOverlay($questionPicker);
   document.getElementById('close-question-picker')?.focus();
 }
 
 function closeQuestionPicker() {
-  $questionPicker?.classList.add('hidden');
+  hideAnimatedOverlay($questionPicker);
 }
 
 function setCurrent(idx) {
@@ -598,6 +685,7 @@ function setCurrent(idx) {
   const cur = $answerList.querySelector(`[data-index="${idx}"]`);
   if (cur) {
     cur.classList.add('current');
+    playQuestionEntrance(cur);
     cur.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
   updateMobileNav();
@@ -634,11 +722,11 @@ $submitBtn.addEventListener('click', () => {
   scoreEl.className = 'result-score ' + cls;
   document.getElementById('result-detail').textContent =
     `Đúng ${correct} trên ${total} câu (${Math.round(pct * 100)}%)`;
-  $result.classList.remove('hidden');
+  showAnimatedOverlay($result);
 });
 
 document.getElementById('result-review-btn').addEventListener('click', () => {
-  $result.classList.add('hidden');
+  hideAnimatedOverlay($result);
   enterReview();
 });
 
@@ -652,7 +740,7 @@ function retry() {
   state.currentIndex = 0;
   state.totalCorrect = 0;
   document.body.classList.remove('mode-review');
-  $result.classList.add('hidden');
+  hideAnimatedOverlay($result);
   $submitBtn.style.display = '';
   $reviewActions.style.display = '';
   render();
