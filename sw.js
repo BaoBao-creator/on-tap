@@ -1,4 +1,4 @@
-const VERSION = 'v7';
+const VERSION = 'v8';
 const CACHE_APP = `app-${VERSION}`;
 const CACHE_EXAM = 'exam-cache';
 
@@ -16,8 +16,8 @@ const APP_FILES = [
   './manifest.json',
   './icons/icon.svg',
   './icons/icon-maskable.svg',
-  `${CDN_PDFJS}/pdf.min.js`,
-  `${CDN_PDFJS}/pdf.worker.min.js`,
+  './pdfjs/pdf.min.js',
+  './pdfjs/pdf.worker.min.js',
 ];
 
 const EXAM_RAW_PREFIX = 'https://raw.githubusercontent.com/BaoBao-creator/on-tap/main/exam/';
