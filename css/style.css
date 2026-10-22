@@ -840,3 +840,181 @@ body.mode-review .ds-btn { cursor: default; }
   .pdf-container { padding: 6px; }
   .pdf-page { max-width: 100%; }
 }
+
+
+/* ---------- Refined micro-interactions ---------- */
+button,
+.btn,
+.back-btn {
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    transform .12s ease,
+    background-color .16s ease,
+    border-color .16s ease,
+    color .16s ease,
+    box-shadow .16s ease;
+}
+button:active:not(:disabled),
+.btn:active:not(:disabled),
+.back-btn:active {
+  transform: scale(.975);
+}
+@media (hover: hover) and (pointer: fine) {
+  .btn:not(:disabled):hover,
+  .ptbtn:not(:disabled):hover,
+  .option-btn:not(:disabled):hover,
+  .question-picker-item:hover,
+  .question-picker-close:hover {
+    transform: translateY(-1px);
+  }
+}
+.abcd-options .option-btn.selected {
+  box-shadow: 0 2px 8px rgba(3, 105, 161, .16);
+}
+.ds-btn[data-state="d"],
+.ds-btn[data-state="s"] {
+  box-shadow: 0 2px 8px rgba(15, 23, 42, .12);
+}
+.question-picker-item {
+  transition:
+    transform .12s ease,
+    background-color .16s ease,
+    border-color .16s ease,
+    box-shadow .16s ease;
+}
+.question-picker-item.current {
+  box-shadow: 0 0 0 2px rgba(3, 105, 161, .08);
+}
+.result-card {
+  box-shadow: 0 20px 55px rgba(15, 23, 42, .2);
+}
+
+/* ---------- Modal entrance and exit ---------- */
+.question-picker-overlay.is-opening,
+.result-overlay.is-opening {
+  animation: overlay-fade-in .18s ease both;
+}
+.question-picker-overlay.is-closing,
+.result-overlay.is-closing {
+  animation: overlay-fade-out .16s ease both;
+}
+.question-picker-overlay.is-opening .question-picker-card,
+.result-overlay.is-opening .result-card {
+  animation: dialog-enter .22s cubic-bezier(.2, .75, .25, 1) both;
+}
+.question-picker-overlay.is-closing .question-picker-card,
+.result-overlay.is-closing .result-card {
+  animation: dialog-exit .15s ease both;
+}
+@keyframes overlay-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes overlay-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+@keyframes dialog-enter {
+  from { opacity: 0; transform: translateY(10px) scale(.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes dialog-exit {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(5px) scale(.985); }
+}
+
+/* ---------- Current-question transition ---------- */
+@keyframes question-enter {
+  from { opacity: .35; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (max-width: 900px) {
+  body.mobile-layout:not(.mode-review) .question-block.question-enter {
+    animation: question-enter .17s ease-out both;
+  }
+}
+
+/* ---------- PDF page skeleton ---------- */
+.pdf-page-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  overflow: hidden;
+  padding: 8% 7% 42px;
+  background: #fff;
+  color: var(--text-muted);
+}
+.pdf-skeleton-sheet {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: clamp(5px, 1.2%, 10px);
+}
+.pdf-skeleton-bar,
+.pdf-skeleton-line,
+.pdf-skeleton-figure {
+  position: relative;
+  display: block;
+  flex: 0 0 auto;
+  overflow: hidden;
+  border-radius: 4px;
+  background: #e8edf3;
+}
+.pdf-skeleton-bar::after,
+.pdf-skeleton-line::after,
+.pdf-skeleton-figure::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .78), transparent);
+  animation: skeleton-shimmer 1.25s ease-in-out infinite;
+}
+.pdf-skeleton-heading {
+  width: 54%;
+  height: clamp(8px, 1.3vw, 16px);
+  margin-bottom: 3px;
+}
+.pdf-skeleton-subheading {
+  width: 34%;
+  height: clamp(5px, .8vw, 10px);
+  margin-bottom: 4%;
+}
+.pdf-skeleton-figure {
+  width: 100%;
+  height: 22%;
+  min-height: 44px;
+  margin-bottom: 3%;
+  background: #eef2f7;
+}
+.pdf-skeleton-line {
+  height: clamp(4px, .7vw, 8px);
+  min-height: 4px;
+}
+.pdf-skeleton-label {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 12px;
+  color: #64748b;
+  text-align: center;
+  font-size: 11px;
+}
+@keyframes skeleton-shimmer {
+  100% { transform: translateX(100%); }
+}
+
+/* Respect system accessibility settings and avoid motion overload. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
