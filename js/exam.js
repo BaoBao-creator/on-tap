@@ -4,8 +4,7 @@ import {
 } from './store.js';
 
 if (window.pdfjsLib) {
-  window.pdfjsLib.GlobalWorkerOptions.workerSrc =
-    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc = './pdfjs/pdf.worker.min.js';
 }
 
 const params = new URLSearchParams(location.search);
@@ -101,43 +100,152 @@ async function init() {
   }
 }
 
-async function renderPdf(pdfBuffer) {
-  $pdfZoomContent.innerHTML = '<div class="pdf-loading">Đang hiển thị đề...</div>';
+let pdfPageObserver = null;
+let pdfPageRecords = [];
+
+async function renderPdfPage(record) {
+  if (!record || record.rendered || record.rendering) return;
+  record.rendering = true;
+
+  const canvas = document.createElement('canvas');
+  canvas.className = 'pdf-page';
+  const viewport = record.page.getViewport({ scale: 2 });
+  canvas.width = Math.floor(viewport.width);
+  canvas.height = Math.floor(viewport.height);
+  const context = canvas.getContext('2d', { alpha: false });
+
+  if (!context) {
+    record.rendering = false;
+    throw new Error('Không thể tạo vùng vẽ PDF.');
+  }
+
+  record.wrapper.replaceChildren(canvas);
+  const renderTask = record.page.render({ canvasContext: context, viewport });
+  record.renderTask = renderTask;
+
   try {
-    if (!window.pdfjsLib) throw new Error('Thiếu pdf.js (chưa tải được từ CDN)');
+    await renderTask.promise;
+    record.canvas = canvas;
+    record.rendered = true;
+  } catch (err) {
+    canvas.width = 0;
+    canvas.height = 0;
+    const placeholder = document.createElement('div');
+    placeholder.className = 'pdf-page-placeholder';
+    placeholder.textContent = err && err.name === 'RenderingCancelledException'
+      ? 'Đang tải lại trang...'
+      : 'Không thể hiển thị trang ' + record.wrapper.dataset.pageNumber;
+    record.wrapper.replaceChildren(placeholder);
+    if (!err || err.name !== 'RenderingCancelledException') throw err;
+  } finally {
+    record.renderTask = null;
+    record.rendering = false;
+  }
+
+  if (record.rendered && !record.visible) releasePdfPage(record);
+}
+
+function releasePdfPage(record) {
+  if (!record || !record.rendered || !record.canvas) return;
+  record.canvas.width = 0;
+  record.canvas.height = 0;
+  const placeholder = document.createElement('div');
+  placeholder.className = 'pdf-page-placeholder';
+  placeholder.textContent = 'Trang ' + record.wrapper.dataset.pageNumber;
+  record.wrapper.replaceChildren(placeholder);
+  record.canvas = null;
+  record.rendered = false;
+}
+
+async function renderPdf(pdfBuffer) {
+  pdfPageObserver?.disconnect();
+  pdfPageObserver = null;
+  pdfPageRecords = [];
+  $pdfZoomContent.innerHTML = '';
+
+  try {
+    if (!window.pdfjsLib) throw new Error('Thiếu PDF.js trong ứng dụng.');
 
     const task = window.pdfjsLib.getDocument({ data: pdfBuffer });
     const pdf = await task.promise;
-    $pdfZoomContent.innerHTML = '';
-    $pdfZoomContent.style.width = `${getPdfViewportWidth()}px`;
+    $pdfZoomContent.style.width = getPdfViewportWidth() + 'px';
 
-    const renderScale = 2;
+    // Tạo khung có đúng tỉ lệ cho từng trang trước, chỉ vẽ canvas khi gần vùng nhìn.
+    const records = [];
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
-      const viewport = page.getViewport({ scale: renderScale });
-
+      const pageSize = page.getViewport({ scale: 1 });
       const wrapper = document.createElement('div');
       wrapper.className = 'pdf-page-wrapper';
+      wrapper.dataset.pageNumber = String(i);
+      wrapper.style.aspectRatio = pageSize.width + ' / ' + pageSize.height;
+      wrapper.setAttribute('aria-label', 'Trang ' + i + ' trên ' + pdf.numPages);
 
-      const pageCanvas = document.createElement('canvas');
-      pageCanvas.width = Math.floor(viewport.width);
-      pageCanvas.height = Math.floor(viewport.height);
-      pageCanvas.className = 'pdf-page';
-
-      wrapper.appendChild(pageCanvas);
+      const placeholder = document.createElement('div');
+      placeholder.className = 'pdf-page-placeholder';
+      placeholder.textContent = 'Trang ' + i;
+      wrapper.appendChild(placeholder);
       $pdfZoomContent.appendChild(wrapper);
 
-      await page.render({
-        canvasContext: pageCanvas.getContext('2d'),
-        viewport,
-      }).promise;
+      records.push({
+        page,
+        wrapper,
+        rendered: false,
+        rendering: false,
+        visible: false,
+        canvas: null,
+        renderTask: null,
+      });
     }
 
-    applyPdfZoom(1);
+    pdfPageRecords = records;
+    applyPdfZoom(pdfZoomScale);
+
+    // Vẽ trang đầu tiên trước khi đóng màn hình tải để tránh màn hình trắng.
+    if (records.length) {
+      records[0].visible = true;
+      await renderPdfPage(records[0]);
+    }
+
+    if ('IntersectionObserver' in window) {
+      pdfPageObserver = new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+          const pageNumber = Number(entry.target.dataset.pageNumber);
+          const record = pdfPageRecords[pageNumber - 1];
+          if (!record) continue;
+          record.visible = entry.isIntersecting;
+          if (entry.isIntersecting) {
+            renderPdfPage(record).catch((err) => {
+              console.warn('PDF page render error:', err);
+            });
+          } else {
+            releasePdfPage(record);
+          }
+        }
+      }, {
+        root: $pdfContainer,
+        rootMargin: '900px 0px',
+      });
+      records.forEach((record) => pdfPageObserver.observe(record.wrapper));
+    } else {
+      // Fallback cho trình duyệt rất cũ không hỗ trợ IntersectionObserver.
+      for (const record of records) {
+        record.visible = true;
+        await renderPdfPage(record);
+      }
+    }
+
+    applyPdfZoom(pdfZoomScale);
   } catch (err) {
     console.error('PDF render error:', err);
-    $pdfZoomContent.innerHTML =
-      '<div class="pdf-loading">Không hiển thị được PDF: ' + err.message + '</div>';
+    pdfPageObserver?.disconnect();
+    pdfPageObserver = null;
+    pdfPageRecords = [];
+    $pdfZoomContent.innerHTML = '';
+    const error = document.createElement('div');
+    error.className = 'pdf-loading';
+    error.textContent = 'Không hiển thị được PDF: ' + (err && err.message ? err.message : 'Lỗi không xác định');
+    $pdfZoomContent.appendChild(error);
     applyPdfZoom(pdfZoomScale);
   }
 }
@@ -174,12 +282,45 @@ function buildQuestions(answers) {
 function restoreProgress() {
   const saved = loadProgress(examName);
   state.answers = (saved && saved.answers) ? saved.answers : {};
-  state.currentIndex = 0;
+  const savedIndex = saved && Number.isInteger(saved.currentIndex) ? saved.currentIndex : 0;
+  state.currentIndex = state.questions.length
+    ? Math.max(0, Math.min(savedIndex, state.questions.length - 1))
+    : 0;
   document.body.classList.remove('mode-review');
   $reviewActions.style.display = '';
 }
 
-function persist() { saveProgress(examName, { answers: state.answers }); }
+function persist() {
+  saveProgress(examName, {
+    answers: state.answers,
+    currentIndex: state.currentIndex,
+  });
+}
+
+function isQuestionAnswered(q) {
+  const answer = state.answers[q.id];
+  if (!answer) return false;
+  if (q.type === 'ds') return String(answer).split('').some((value) => value !== 'n');
+  return String(answer).trim().length > 0;
+}
+
+function normalizeTLNAnswer(value) {
+  const text = String(value == null ? '' : value).trim().replace(/\s+/g, '').replace(',', '.');
+  if (!text) return '';
+  if (/^-?(?:\d+(?:\.\d*)?|\.\d+)$/.test(text)) {
+    const number = Number(text);
+    if (Number.isFinite(number)) return String(Number(number.toPrecision(12)));
+  }
+  return text.toLowerCase();
+}
+
+function isAnswerCorrect(q, answer) {
+  if (!isQuestionAnswered(q)) return false;
+  if (q.type === 'tln') {
+    return normalizeTLNAnswer(answer) === normalizeTLNAnswer(q.correct);
+  }
+  return answer === q.correct;
+}
 
 function render() {
   $answerList.innerHTML = '';
@@ -233,6 +374,7 @@ function renderABCD(q) {
       if (state.answers[q.id] === opt) delete state.answers[q.id];
       else state.answers[q.id] = opt;
       persist();
+      updateMobileNav();
       wrap.querySelectorAll('.option-btn').forEach(b => b.classList.remove('selected'));
       if (state.answers[q.id]) {
         wrap.querySelector(`[data-value="${state.answers[q.id]}"]`).classList.add('selected');
@@ -261,6 +403,7 @@ function renderDS(q) {
       current[i] = nextMap[current[i]] || 'n';
       state.answers[q.id] = current.join('');
       persist();
+      updateMobileNav();
       btn.dataset.state = current[i];
       btn.textContent = charLabel(current[i]);
     });
@@ -278,67 +421,49 @@ function charLabel(c) {
 function renderTLN(q) {
   const wrap = document.createElement('div');
   wrap.className = 'tln-inputs';
-  const current = (state.answers[q.id] || '').padEnd(4, ' ').slice(0, 4);
-  const inputs = [];
 
-  for (let i = 0; i < 4; i++) {
-    const inp = document.createElement('input');
-    inp.type = 'text';
-    inp.inputMode = 'text';
-    inp.className = 'tln-box';
-    inp.value = current[i].trim();
-    inp.dataset.idx = i;
+  const inp = document.createElement('input');
+  inp.type = 'text';
+  inp.inputMode = 'decimal';
+  inp.autocomplete = 'off';
+  inp.className = 'tln-box tln-single-input';
+  inp.value = state.answers[q.id] || '';
+  inp.setAttribute('aria-label', 'Đáp án câu ' + q.numberInSection);
+  inp.placeholder = 'Nhập đáp án số';
+  inp.spellcheck = false;
 
-    inp.addEventListener('input', () => {
-      if (document.body.classList.contains('mode-review')) { inp.value = ''; return; }
-      let v = inp.value.slice(-1);
-      if (!v) { inp.value = ''; syncTLN(); return; }
-      if (!/^[0-9,-]$/.test(v)) { inp.value = ''; return; }
-      if (v === '-') {
-        if (i !== 0) { inp.value = ''; return; }
-        const others = inputs.map((el, j) => j === i ? '' : el.value).join('');
-        if (others.includes('-')) { inp.value = ''; return; }
-      }
-      if (v === ',') {
-        if (i !== 1 && i !== 2) { inp.value = ''; return; }
-        const others = inputs.map((el, j) => j === i ? '' : el.value).join('');
-        if (others.includes(',')) { inp.value = ''; return; }
-      }
-      inp.value = v;
-      syncTLN();
-      if (v && i < 3) inputs[i + 1].focus();
-    });
-
-    inp.addEventListener('keydown', (e) => {
-      if (e.key === 'Backspace' && !inp.value && i > 0) {
-        e.preventDefault();
-        inputs[i - 1].focus();
-        inputs[i - 1].value = '';
-        syncTLN();
-      } else if (e.key === 'ArrowLeft' && i > 0) inputs[i - 1].focus();
-      else if (e.key === 'ArrowRight' && i < 3) inputs[i + 1].focus();
-    });
-
-    inputs.push(inp);
-    wrap.appendChild(inp);
-  }
-
-  function syncTLN() {
-    let val = '';
-    for (let i = 0; i < 4; i++) {
-      const c = inputs[i].value.trim();
-      if (!c) break;
-      val += c;
+  let lastValidValue = inp.value;
+  inp.addEventListener('input', () => {
+    if (document.body.classList.contains('mode-review')) {
+      inp.value = lastValidValue;
+      return;
     }
-    if (val) state.answers[q.id] = val;
+
+    const value = inp.value.trim();
+    if (value && !/^-?\d*[.,]?\d*$/.test(value)) {
+      inp.value = lastValidValue;
+      return;
+    }
+    if ((value.match(/[.,]/g) || []).length > 1) {
+      inp.value = lastValidValue;
+      return;
+    }
+
+    lastValidValue = inp.value;
+    const answer = inp.value.trim();
+    if (answer) state.answers[q.id] = answer;
     else delete state.answers[q.id];
     persist();
-  }
+    updateMobileNav();
+  });
+
+  wrap.appendChild(inp);
   return wrap;
 }
 
 function updateMobileNav() {
-  const total = state.questions.length || 1;
+  const total = state.questions.length;
+  const safeTotal = total || 1;
 
   document.querySelectorAll('.question-nav').forEach((nav) => {
     const prev = nav.querySelector('.prev-q');
@@ -348,10 +473,26 @@ function updateMobileNav() {
     if (prev) prev.disabled = state.currentIndex === 0;
     if (next) next.disabled = state.currentIndex >= total - 1;
     if (indexButton) {
-      indexButton.textContent = `[${state.currentIndex + 1}/${total}]`;
-      indexButton.setAttribute('aria-label', `Chọn câu ${state.currentIndex + 1} trên ${total}`);
+      indexButton.textContent = '[' + (state.currentIndex + 1) + '/' + safeTotal + ']';
+      indexButton.setAttribute('aria-label', 'Chọn câu ' + (state.currentIndex + 1) + ' trên ' + safeTotal);
     }
   });
+
+  const answered = state.questions.filter(isQuestionAnswered).length;
+  const percent = total ? Math.round(answered / total * 100) : 0;
+  const progressText = document.getElementById('progress-text');
+  const progressPercent = document.getElementById('progress-percent');
+  const progressBar = document.getElementById('answer-progress-fill');
+  const progressTrack = document.getElementById('answer-progress');
+
+  if (progressText) progressText.textContent = 'Đã làm ' + answered + '/' + total + ' câu';
+  if (progressPercent) progressPercent.textContent = percent + '%';
+  if (progressBar) progressBar.style.width = percent + '%';
+  if (progressTrack) {
+    progressTrack.setAttribute('aria-valuemax', String(total));
+    progressTrack.setAttribute('aria-valuenow', String(answered));
+    progressTrack.setAttribute('aria-valuetext', answered + ' trên ' + total + ' câu đã có đáp án');
+  }
 }
 
 function createQuestionNav() {
@@ -395,7 +536,7 @@ function openQuestionPicker() {
     if (index === state.currentIndex) item.classList.add('current');
 
     const answer = state.answers[q.id];
-    const answered = Boolean(answer) && !(q.type === 'ds' && answer === 'nnnn');
+    const answered = isQuestionAnswered(q);
     if (answered) item.classList.add('answered');
 
     const number = document.createElement('span');
@@ -430,6 +571,7 @@ function closeQuestionPicker() {
 function setCurrent(idx) {
   if (idx < 0 || idx >= state.questions.length) return;
   state.currentIndex = idx;
+  persist();
   $answerList.querySelectorAll('.question-block.current').forEach(el => el.classList.remove('current'));
   const cur = $answerList.querySelector(`[data-index="${idx}"]`);
   if (cur) {
@@ -451,12 +593,12 @@ document.addEventListener('keydown', (event) => {
 
 $submitBtn.addEventListener('click', () => {
   if (state.questions.length === 0) return;
-  const unanswered = state.questions.filter(q => !state.answers[q.id]).length;
+  const unanswered = state.questions.filter(q => !isQuestionAnswered(q)).length;
   if (unanswered > 0 && !confirm(`Bạn còn ${unanswered} câu chưa làm. Vẫn nộp bài?`)) return;
 
   let correct = 0;
   for (const q of state.questions) {
-    if (state.answers[q.id] === q.correct) correct++;
+    if (isAnswerCorrect(q, state.answers[q.id])) correct++;
   }
   state.totalCorrect = correct;
   const total = state.questions.length;
@@ -509,7 +651,7 @@ function enterReview() {
     block.appendChild(label);
 
     const userAns = state.answers[q.id];
-    const isCorrect = userAns === q.correct;
+    const isCorrect = isAnswerCorrect(q, userAns);
     if (q.type === 'abcd') block.appendChild(reviewABCD(q, userAns));
     else if (q.type === 'ds') block.appendChild(reviewDS(q, userAns));
     else block.appendChild(reviewTLN(q, userAns, isCorrect));
