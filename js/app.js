@@ -76,8 +76,10 @@ async function renderList(exams) {
     status.className = 'exam-status';
 
     if (downloaded) {
-      status.textContent = 'Đã tải';
-      status.title = 'Có thể mở đề khi không có mạng';
+      if (!online) {
+        status.textContent = 'Đã tải';
+        status.title = 'Có thể mở đề khi không có mạng';
+      }
     } else if (!online) {
       nameEl.href = '#';
       nameEl.classList.add('exam-name-disabled');
