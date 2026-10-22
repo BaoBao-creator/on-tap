@@ -109,6 +109,21 @@ async function renderPdfPage(record) {
 
   const canvas = document.createElement('canvas');
   canvas.className = 'pdf-page';
+  try {
+    if (!record.page) {
+      record.page = await record.pdf.getPage(record.pageNumber);
+      const pageSize = record.page.getViewport({ scale: 1 });
+      const actualRatio = pageSize.width + ' / ' + pageSize.height;
+      if (record.wrapper.style.aspectRatio !== actualRatio) {
+        record.wrapper.style.aspectRatio = actualRatio;
+        applyPdfZoom(pdfZoomScale);
+      }
+    }
+  } catch (err) {
+    record.rendering = false;
+    throw err;
+  }
+
   const viewport = record.page.getViewport({ scale: 2 });
   canvas.width = Math.floor(viewport.width);
   canvas.height = Math.floor(viewport.height);
@@ -170,11 +185,16 @@ async function renderPdf(pdfBuffer) {
     const pdf = await task.promise;
     $pdfZoomContent.style.width = getPdfViewportWidth() + 'px';
 
-    // Tạo khung có đúng tỉ lệ cho từng trang trước, chỉ vẽ canvas khi gần vùng nhìn.
+    // Chỉ cần trang đầu để lấy tỉ lệ mặc định; trang khác được tải khi gần vùng nhìn.
+    const firstPage = pdf.numPages ? await pdf.getPage(1) : null;
+    const defaultPageSize = firstPage
+      ? firstPage.getViewport({ scale: 1 })
+      : { width: 1, height: 1 };
+
     const records = [];
     for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const pageSize = page.getViewport({ scale: 1 });
+      const page = i === 1 ? firstPage : null;
+      const pageSize = defaultPageSize;
       const wrapper = document.createElement('div');
       wrapper.className = 'pdf-page-wrapper';
       wrapper.dataset.pageNumber = String(i);
@@ -188,7 +208,9 @@ async function renderPdf(pdfBuffer) {
       $pdfZoomContent.appendChild(wrapper);
 
       records.push({
+        pdf,
         page,
+        pageNumber: i,
         wrapper,
         rendered: false,
         rendering: false,
@@ -301,6 +323,7 @@ function isQuestionAnswered(q) {
   const answer = state.answers[q.id];
   if (!answer) return false;
   if (q.type === 'ds') return String(answer).split('').some((value) => value !== 'n');
+  if (q.type === 'tln') return /^-?(?:\d+(?:[.,]\d+)?|[.,]\d+)$/.test(String(answer).trim());
   return String(answer).trim().length > 0;
 }
 
@@ -535,7 +558,6 @@ function openQuestionPicker() {
     item.className = 'question-picker-item';
     if (index === state.currentIndex) item.classList.add('current');
 
-    const answer = state.answers[q.id];
     const answered = isQuestionAnswered(q);
     if (answered) item.classList.add('answered');
 
