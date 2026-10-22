@@ -34,6 +34,24 @@
     </section>
 
     <aside class="answer-pane">
+      <div class="answer-progress-wrap">
+        <div class="answer-progress-meta">
+          <span id="progress-text">Đã làm 0/0 câu</span>
+          <span id="progress-percent">0%</span>
+        </div>
+        <div
+          id="answer-progress"
+          class="answer-progress"
+          role="progressbar"
+          aria-label="Tiến độ làm bài"
+          aria-valuemin="0"
+          aria-valuemax="0"
+          aria-valuenow="0"
+          aria-valuetext="Chưa có câu trả lời"
+        >
+          <div id="answer-progress-fill" class="answer-progress-fill"></div>
+        </div>
+      </div>
       <div class="answer-list" id="answer-list"></div>
       <div class="answer-footer">
         <button class="btn btn-primary" id="submit-btn" type="button">Nộp bài</button>
@@ -79,7 +97,7 @@
       navigator.serviceWorker.register('./sw.js').catch(e => console.warn('SW:', e));
     }
   </script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="./pdfjs/pdf.min.js"></script>
   <script type="module" src="./js/exam.js"></script>
 </body>
 </html>
