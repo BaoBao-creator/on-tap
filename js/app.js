@@ -72,6 +72,22 @@ async function renderList(exams) {
     actions.className = 'exam-actions';
 
     const downloaded = await isDownloaded(name);
+    const status = document.createElement('span');
+    status.className = 'exam-status';
+
+    if (downloaded) {
+      status.textContent = 'Đã tải';
+      status.title = 'Có thể mở đề khi không có mạng';
+    } else if (!online) {
+      nameEl.href = '#';
+      nameEl.classList.add('exam-name-disabled');
+      nameEl.setAttribute('aria-disabled', 'true');
+      nameEl.title = 'Cần có mạng để tải đề này';
+      nameEl.addEventListener('click', (e) => e.preventDefault());
+      status.textContent = 'Chưa tải';
+      status.title = 'Kết nối mạng rồi tải đề để làm ngoại tuyến';
+      status.classList.add('unavailable');
+    }
 
     if (downloaded) {
       const delBtn = document.createElement('button');
@@ -106,6 +122,7 @@ async function renderList(exams) {
     }
 
     li.appendChild(nameEl);
+    if (status.textContent) li.appendChild(status);
     li.appendChild(actions);
     $list.appendChild(li);
   }
