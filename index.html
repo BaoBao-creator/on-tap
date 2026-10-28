@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#0ea5e9">
+  <meta name="description" content="Thư viện đề ôn tập được sắp xếp theo thư mục.">
   <title>Ôn tập</title>
   <link rel="manifest" href="./manifest.json">
   <link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
@@ -17,10 +18,44 @@
       <span class="label">...</span>
     </div>
   </header>
+
   <main class="menu-main">
-    <div id="menu-message" class="message"></div>
-    <ul id="exam-list" class="exam-list"></ul>
+    <section class="library-intro" aria-labelledby="folder-title">
+      <div class="library-kicker">
+        <span class="library-kicker-dot" aria-hidden="true"></span>
+        THƯ VIỆN HỌC TẬP
+      </div>
+      <div class="library-heading-row">
+        <div class="library-heading-copy">
+          <h2 id="folder-title">Tất cả đề thi</h2>
+          <p id="folder-description">Duyệt theo thư mục hoặc mở một đề để bắt đầu làm bài.</p>
+        </div>
+      </div>
+    </section>
+
+    <div id="menu-message" class="message hidden" role="status" aria-live="polite"></div>
+
+    <section class="library-browser" aria-label="Thư viện đề ôn tập">
+      <nav id="breadcrumbs" class="breadcrumbs" aria-label="Vị trí hiện tại"></nav>
+
+      <div class="library-toolbar">
+        <label class="library-search" for="folder-search">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="10.8" cy="10.8" r="6.8"></circle>
+            <path d="m16 16 4.2 4.2"></path>
+          </svg>
+          <input id="folder-search" type="search" autocomplete="off" placeholder="Tìm trong thư mục này…" aria-label="Tìm thư mục hoặc đề">
+          <kbd>/</kbd>
+        </label>
+        <div class="library-summary" aria-live="polite">
+          <span id="folder-item-count">0 mục</span>
+        </div>
+      </div>
+
+      <ul id="exam-list" class="exam-list" aria-label="Nội dung thư mục"></ul>
+    </section>
   </main>
+
   <script>
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('./sw.js').catch(e => console.warn('SW:', e));
