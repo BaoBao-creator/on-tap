@@ -137,7 +137,7 @@ function navigateTo(path, updateHistory) {
   window.scrollTo({ top: 0, behavior: 'auto' });
 }
 
-function renderEmptyState(message) {
+function renderEmptyState(message, detailText) {
   const item = document.createElement('li');
   item.className = 'empty-state';
 
@@ -145,7 +145,7 @@ function renderEmptyState(message) {
   const title = document.createElement('strong');
   title.textContent = message;
   const detail = document.createElement('span');
-  detail.textContent = 'Các thư mục và đề thi sẽ xuất hiện ở đây.';
+  detail.textContent = detailText || 'Các thư mục và đề thi sẽ xuất hiện ở đây.';
   item.append(icon, title, detail);
   $list.appendChild(item);
 }
@@ -183,11 +183,10 @@ function renderEntry(item, downloaded, online) {
 
   if (isFolder) {
     const counts = countContents(item);
-    if (counts.exams || counts.folders) {
-      subtitle.textContent = counts.folders + ' thư mục · ' + counts.exams + ' đề';
-    } else {
-      subtitle.textContent = 'Thư mục phân loại';
-    }
+    const countLabels = [];
+    if (counts.folders) countLabels.push(counts.folders + ' thư mục');
+    if (counts.exams) countLabels.push(counts.exams + ' đề');
+    subtitle.textContent = countLabels.join(' · ') || 'Thư mục phân loại';
   } else {
     subtitle.textContent = 'PDF · Đáp án';
   }
@@ -260,7 +259,10 @@ async function renderList(items) {
   const filtered = (items || []).filter((item) => item.name.toLocaleLowerCase('vi').includes(query));
 
   if (!filtered.length) {
-    renderEmptyState(query ? 'Không tìm thấy mục phù hợp.' : 'Thư mục này chưa có đề thi hoặc thư mục con.');
+    renderEmptyState(
+      query ? 'Không tìm thấy mục phù hợp.' : 'Thư mục này chưa có đề thi hoặc thư mục con.',
+      query ? 'Thử từ khóa khác hoặc xóa nội dung tìm kiếm.' : 'Các đề thi và thư mục con sẽ xuất hiện tại đây khi được thêm vào GitHub.'
+    );
     return;
   }
 
