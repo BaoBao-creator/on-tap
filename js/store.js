@@ -73,7 +73,7 @@ export async function getAllDownloaded() {
 
     try {
       const relative = decodeURIComponent(request.url.slice(prefix.length));
-      const match = relative.match(/^(.*)\\/(questions\\.pdf|answers\\.json)$/);
+      const match = relative.match(/^(.*)\/(questions\.pdf|answers\.json)$/);
       if (match && match[1]) paths.add(match[1]);
     } catch (error) {
       console.warn('Bỏ qua cache có đường dẫn không hợp lệ:', request.url);
