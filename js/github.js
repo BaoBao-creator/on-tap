@@ -96,7 +96,6 @@ function buildExamTree(entries) {
 export async function listExams() {
   const res = await fetch(API_BASE + '/git/trees/' + GH_BRANCH + '?recursive=1', {
     headers: { Accept: 'application/vnd.github+json' },
-    cache: 'no-store',
   });
   if (!res.ok) throw new Error('Lỗi tải thư viện (' + res.status + ')');
 
