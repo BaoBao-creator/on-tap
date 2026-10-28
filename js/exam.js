@@ -9,6 +9,9 @@ if (window.pdfjsLib) {
 
 const params = new URLSearchParams(location.search);
 const examName = params.get('de');
+const returnPath = params.get('from') || '';
+const returnUrl = './index.html' + (returnPath ? '?path=' + encodeURIComponent(returnPath) : '');
+document.querySelectorAll('a[href="./index.html"]').forEach((link) => { link.href = returnUrl; });
 
 const $title = document.getElementById('exam-title');
 const $answerList = document.getElementById('answer-list');
@@ -66,7 +69,10 @@ updateNetStatus();
 
 async function init() {
   if (!examName) { location.replace('./index.html'); return; }
-  $title.textContent = examName;
+  const displayName = examName.split('/').filter(Boolean).pop() || examName;
+  $title.textContent = displayName;
+  $title.title = examName;
+  document.title = displayName + ' · Ôn tập';
 
   try {
     if (!(await isDownloaded(examName))) {
