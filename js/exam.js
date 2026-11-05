@@ -366,31 +366,112 @@ async function renderPdf(pdfBuffer) {
 }
 
 function buildQuestions(answers) {
-  const questions = [];
   const sections = [
     { key: 'abcd', title: 'Phần I: Trắc nghiệm nhiều lựa chọn' },
     { key: 'ds',   title: 'Phần II: Đúng / Sai' },
     { key: 'tln',  title: 'Phần III: Trả lời ngắn' },
   ];
-  for (const sec of sections) {
-    const data = answers[sec.key];
-    if (!data || typeof data !== 'object') continue;
+  const sectionByKey = new Map(sections.map((section) => [section.key, section]));
+  const questionsById = new Map();
+  const questionsBySection = new Map();
+
+  // Tạo câu hỏi từ đáp án, nhưng chưa áp đặt thứ tự hiển thị.
+  for (const section of sections) {
+    const data = answers[section.key];
+    if (!data || typeof data !== 'object' || Array.isArray(data)) continue;
+
     const keys = Object.keys(data).sort((a, b) => {
-      const na = parseInt(a, 10), nb = parseInt(b, 10);
-      if (!isNaN(na) && !isNaN(nb)) return na - nb;
-      return a.localeCompare(b);
+      const na = Number(a);
+      const nb = Number(b);
+      if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
+      return a.localeCompare(b, undefined, { numeric: true });
     });
-    keys.forEach((k, idx) => {
-      questions.push({
-        id: `${sec.key}-${k}`,
-        type: sec.key,
-        sectionTitle: sec.title,
-        numberInSection: k,
-        correct: String(data[k]),
-        isFirstInSection: idx === 0,
+
+    const sectionQuestions = keys.map((number) => ({
+      id: `${section.key}-${number}`,
+      type: section.key,
+      sectionTitle: section.title,
+      groupTitle: section.title,
+      numberInSection: number,
+      correct: String(data[number]),
+      headingBefore: '',
+    }));
+
+    questionsBySection.set(section.key, sectionQuestions);
+    sectionQuestions.forEach((question) => questionsById.set(question.id, question));
+  }
+
+  // Không có "order": giữ định dạng cũ và thứ tự mặc định theo từng dạng câu hỏi.
+  if (!Array.isArray(answers.order) || answers.order.length === 0) {
+    const questions = [];
+    for (const section of sections) {
+      const sectionQuestions = questionsBySection.get(section.key) || [];
+      sectionQuestions.forEach((question, index) => {
+        question.headingBefore = index === 0 ? section.title : '';
+        question.groupTitle = section.title;
+        questions.push(question);
       });
+    }
+    state.questions = questions;
+    return;
+  }
+
+  // Có "order": đọc tuần tự, cho phép chèn tiêu đề và tham chiếu câu hỏi tự do.
+  const questions = [];
+  const addedIds = new Set();
+  let activeHeading = '';
+  let pendingHeading = '';
+  let lastDefaultType = null;
+
+  for (const item of answers.order) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+
+    if (typeof item.heading === 'string') {
+      const heading = item.heading.trim();
+      if (heading) {
+        activeHeading = heading;
+        pendingHeading = heading;
+      }
+      continue;
+    }
+
+    const type = item.type;
+    const number = item.number == null ? '' : String(item.number);
+    if (!sectionByKey.has(type) || !number) continue;
+
+    const id = `${type}-${number}`;
+    const question = questionsById.get(id);
+    if (!question || addedIds.has(id)) continue;
+
+    if (pendingHeading) {
+      question.headingBefore = pendingHeading;
+      question.groupTitle = activeHeading;
+      pendingHeading = '';
+    } else if (activeHeading) {
+      question.groupTitle = activeHeading;
+    } else {
+      question.groupTitle = question.sectionTitle;
+      if (lastDefaultType !== type) question.headingBefore = question.sectionTitle;
+      lastDefaultType = type;
+    }
+
+    questions.push(question);
+    addedIds.add(id);
+  }
+
+  // Nếu order bỏ sót câu nào, vẫn đưa câu đó vào cuối để không làm mất đáp án.
+  for (const section of sections) {
+    const remaining = (questionsBySection.get(section.key) || [])
+      .filter((question) => !addedIds.has(question.id));
+
+    remaining.forEach((question, index) => {
+      question.groupTitle = section.title;
+      question.headingBefore = index === 0 ? section.title : '';
+      questions.push(question);
+      addedIds.add(question.id);
     });
   }
+
   state.questions = questions;
 }
 
@@ -441,10 +522,10 @@ function isAnswerCorrect(q, answer) {
 function render() {
   $answerList.innerHTML = '';
   state.questions.forEach((q, i) => {
-    if (q.isFirstInSection) {
+    if (q.headingBefore) {
       const h = document.createElement('div');
       h.className = 'section-header';
-      h.textContent = q.sectionTitle;
+      h.textContent = q.headingBefore;
       $answerList.appendChild(h);
     }
     const block = document.createElement('div');
@@ -457,7 +538,7 @@ function render() {
     label.textContent = `Câu ${q.numberInSection}`;
     const tag = document.createElement('span');
     tag.className = 'section-tag';
-    tag.textContent = q.sectionTitle;
+    tag.textContent = q.groupTitle || q.sectionTitle;
     label.appendChild(tag);
     block.appendChild(label);
 
@@ -664,9 +745,9 @@ function openQuestionPicker() {
 
     const section = document.createElement('span');
     section.className = 'question-picker-section';
-    section.textContent = q.type === 'abcd' ? 'Phần I' : q.type === 'ds' ? 'Phần II' : 'Phần III';
+    section.textContent = q.groupTitle || (q.type === 'abcd' ? 'Phần I' : q.type === 'ds' ? 'Phần II' : 'Phần III');
 
-    item.title = `${q.sectionTitle} — Câu ${q.numberInSection}`;
+    item.title = `${q.groupTitle || q.sectionTitle} — Câu ${q.numberInSection}`;
     item.append(number, label, section);
     item.addEventListener('click', () => {
       setCurrent(index);
@@ -759,6 +840,13 @@ function enterReview() {
 
   $answerList.innerHTML = '';
   state.questions.forEach((q) => {
+    if (q.headingBefore) {
+      const heading = document.createElement('div');
+      heading.className = 'section-header';
+      heading.textContent = q.headingBefore;
+      $answerList.appendChild(heading);
+    }
+
     const block = document.createElement('div');
     block.className = 'question-block current';
     const label = document.createElement('div');
