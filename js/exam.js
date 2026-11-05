@@ -387,13 +387,14 @@ function buildQuestions(answers) {
       return a.localeCompare(b, undefined, { numeric: true });
     });
 
-    const sectionQuestions = keys.map((number) => ({
-      id: `${section.key}-${number}`,
+    const sectionQuestions = keys.map((key) => ({
+      id: `${section.key}-${key}`,
       type: section.key,
       sectionTitle: section.title,
       groupTitle: section.title,
-      numberInSection: number,
-      correct: String(data[number]),
+      storageKey: key,
+      numberInSection: key,
+      correct: String(data[key]),
       headingBefore: '',
     }));
 
@@ -436,12 +437,18 @@ function buildQuestions(answers) {
     }
 
     const type = item.type;
-    const number = item.number == null ? '' : String(item.number);
-    if (!sectionByKey.has(type) || !number) continue;
+    const storageKey = item.key == null
+      ? (item.number == null ? '' : String(item.number))
+      : String(item.key);
+    const displayNumber = item.number == null ? storageKey : String(item.number);
+    if (!sectionByKey.has(type) || !storageKey || !displayNumber) continue;
 
-    const id = `${type}-${number}`;
+    const id = `${type}-${storageKey}`;
     const question = questionsById.get(id);
     if (!question || addedIds.has(id)) continue;
+
+    // "key" dùng để lưu trữ/định danh; "number" chỉ là nhãn hiển thị.
+    question.numberInSection = displayNumber;
 
     if (pendingHeading) {
       question.headingBefore = pendingHeading;
