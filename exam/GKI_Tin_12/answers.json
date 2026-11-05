@@ -1,0 +1,110 @@
+[
+  [
+    "BÀI 1. LÀM QUEN VỚI TRÍ TUỆ NHÂN TẠO",
+    ["abcd", "1", "a"],
+    ["abcd", "2", "c"],
+    ["abcd", "3", "c"],
+    ["abcd", "4", "b"],
+    ["abcd", "5", "c"],
+    ["abcd", "6", "a"],
+    ["abcd", "7", "b"],
+    ["abcd", "8", "c"],
+    ["abcd", "9", "a"]
+  ],
+  [
+    "BÀI 2. TRÍ TUỆ NHÂN TẠO TRONG KHOA HỌC VÀ ĐỜI SỐNG",
+    ["abcd", "1", "b"],
+    ["abcd", "2", "c"],
+    ["abcd", "3", "d"],
+    ["abcd", "4", "d"],
+    ["abcd", "5", "d"],
+    ["abcd", "6", "b"],
+    ["abcd", "7", "b"],
+    ["abcd", "8", "a"],
+    ["abcd", "9", "b"]
+  ],
+  [
+    "BÀI 3. MỘT SỐ THIẾT BỊ MẠNG THÔNG DỤNG",
+    ["abcd", "1", "a"],
+    ["abcd", "2", "c"],
+    ["abcd", "3", "b"],
+    ["abcd", "5", "a"],
+    ["abcd", "6", "a"],
+    ["abcd", "7", "d"],
+    ["abcd", "8", "a"],
+    ["abcd", "9", "c"],
+    ["abcd", "10", "b"]
+  ],
+  [
+    "BÀI 4. GIAO THỨC MẠNG",
+    ["abcd", "1", "b"],
+    ["abcd", "2", "b"],
+    ["abcd", "3", "a"],
+    ["abcd", "4", "c"],
+    ["abcd", "5", "a"],
+    ["abcd", "6", "d"],
+    ["abcd", "7", "b"],
+    ["abcd", "8", "b"],
+    ["abcd", "9", "b"],
+    ["abcd", "10", "c"]
+  ],
+  [
+    "BÀI 5. THỰC HÀNH CHIA SẺ TÀI NGUYÊN TRÊN MẠNG",
+    ["abcd", "1", "d"],
+    ["abcd", "2", "b"],
+    ["abcd", "3", "b"],
+    ["abcd", "4", "a"],
+    ["abcd", "5", "b"],
+    ["abcd", "6", "b"],
+    ["abcd", "7", "c"]
+  ],
+  [
+    "BÀI 6. GIAO TIẾP VÀ ỨNG XỬ TRONG KHÔNG GIAN MẠNG",
+    ["abcd", "1", "b"],
+    ["abcd", "2", "c"],
+    ["abcd", "3", "d"],
+    ["abcd", "4", "b"],
+    ["abcd", "5", "c"],
+    ["abcd", "6", "b"],
+    ["abcd", "7", "b"],
+    ["abcd", "8", "b"],
+    ["abcd", "9", "b"],
+    ["abcd", "10", "b"]
+  ],
+  [
+    "BÀI 7. HTML VÀ CẤU TRÚC TRANG WEB",
+    ["abcd", "1", "c"],
+    ["abcd", "2", "b"],
+    ["abcd", "3", "b"],
+    ["abcd", "4", "a"],
+    ["abcd", "5", "b"],
+    ["abcd", "6", "c"],
+    ["abcd", "7", "b"],
+    ["abcd", "8", "a"],
+    ["abcd", "9", "d"],
+    ["abcd", "10", "b"]
+  ],
+  [
+    "BÀI 8. ĐỊNH DẠNG VĂN BẢN",
+    ["abcd", "1", "d"],
+    ["abcd", "2", "b"],
+    ["abcd", "3", "a"],
+    ["abcd", "4", "d"],
+    ["abcd", "5", "c"],
+    ["abcd", "6", "a"],
+    ["abcd", "7", "d"],
+    ["abcd", "8", "c"],
+    ["abcd", "9", "a"],
+    ["abcd", "10", "b"]
+  ],
+  [
+    "PHẦN II. TRẮC NGHIỆM ĐÚNG SAI",
+    ["ds", "1", "dsds"],
+    ["ds", "2", "ddsd"],
+    ["ds", "3", "dssd"],
+    ["ds", "5", "sdsd"],
+    ["ds", "6", "dsds"],
+    ["ds", "7", "ddss"],
+    ["ds", "8", "dssd"]
+  ]
+]
