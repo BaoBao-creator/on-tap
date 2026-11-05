@@ -174,20 +174,19 @@ function renderEntry(item, downloaded, online) {
   const title = document.createElement('span');
   title.className = 'entry-title';
   title.textContent = item.name;
-  const subtitle = document.createElement('span');
-  subtitle.className = 'entry-subtitle';
+  copy.appendChild(title);
 
   if (isFolder) {
     const counts = countContents(item);
     const countLabels = [];
     if (counts.folders) countLabels.push(counts.folders + ' thư mục');
     if (counts.exams) countLabels.push(counts.exams + ' đề');
-    subtitle.textContent = countLabels.join(' · ');
-  } else {
-    subtitle.textContent = 'PDF · Đáp án';
-  }
 
-  copy.append(title, subtitle);
+    const subtitle = document.createElement('span');
+    subtitle.className = 'entry-subtitle';
+    subtitle.textContent = countLabels.join(' · ');
+    copy.appendChild(subtitle);
+  }
   main.appendChild(copy);
   li.appendChild(main);
 
