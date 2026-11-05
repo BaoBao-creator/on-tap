@@ -365,123 +365,65 @@ async function renderPdf(pdfBuffer) {
   }
 }
 
-function buildQuestions(answers) {
-  const sections = [
-    { key: 'abcd', title: 'Phần I: Trắc nghiệm nhiều lựa chọn' },
-    { key: 'ds',   title: 'Phần II: Đúng / Sai' },
-    { key: 'tln',  title: 'Phần III: Trả lời ngắn' },
-  ];
-  const sectionByKey = new Map(sections.map((section) => [section.key, section]));
-  const questionsById = new Map();
-  const questionsBySection = new Map();
-
-  // Tạo câu hỏi từ đáp án, nhưng chưa áp đặt thứ tự hiển thị.
-  for (const section of sections) {
-    const data = answers[section.key];
-    if (!data || typeof data !== 'object' || Array.isArray(data)) continue;
-
-    const keys = Object.keys(data).sort((a, b) => {
-      const na = Number(a);
-      const nb = Number(b);
-      if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
-      return a.localeCompare(b, undefined, { numeric: true });
-    });
-
-    const sectionQuestions = keys.map((key) => ({
-      id: `${section.key}-${key}`,
-      type: section.key,
-      sectionTitle: section.title,
-      groupTitle: section.title,
-      storageKey: key,
-      numberInSection: key,
-      correct: String(data[key]),
-      headingBefore: '',
-    }));
-
-    questionsBySection.set(section.key, sectionQuestions);
-    sectionQuestions.forEach((question) => questionsById.set(question.id, question));
+function buildQuestions(sectionsData) {
+  if (!Array.isArray(sectionsData)) {
+    throw new Error('answers.json phải là một danh sách các phần (mảng lồng nhau).');
   }
 
-  // Không có "order": giữ định dạng cũ và thứ tự mặc định theo từng dạng câu hỏi.
-  if (!Array.isArray(answers.order) || answers.order.length === 0) {
-    const questions = [];
-    for (const section of sections) {
-      const sectionQuestions = questionsBySection.get(section.key) || [];
-      sectionQuestions.forEach((question, index) => {
-        question.headingBefore = index === 0 ? section.title : '';
-        question.groupTitle = section.title;
-        questions.push(question);
+  const typeTitles = {
+    abcd: 'Trắc nghiệm nhiều lựa chọn',
+    ds: 'Đúng / Sai',
+    tln: 'Trả lời ngắn',
+  };
+  const questions = [];
+
+  sectionsData.forEach((section, sectionIndex) => {
+    if (!Array.isArray(section)) {
+      throw new Error('Phần ' + (sectionIndex + 1) + ' trong answers.json phải là một danh sách.');
+    }
+
+    let groupTitle = '';
+    let firstQuestionIndex = 0;
+    if (typeof section[0] === 'string') {
+      groupTitle = section[0].trim();
+      firstQuestionIndex = 1;
+    }
+
+    let questionCount = 0;
+    for (let itemIndex = firstQuestionIndex; itemIndex < section.length; itemIndex += 1) {
+      const item = section[itemIndex];
+      if (!Array.isArray(item) || (item.length !== 2 && item.length !== 3)) {
+        throw new Error('Câu hỏi ở phần ' + (sectionIndex + 1) + ', mục ' + (itemIndex + 1) + ' phải có dạng [type, answer] hoặc [type, number, answer].');
+      }
+
+      const type = item[0];
+      if (!Object.prototype.hasOwnProperty.call(typeTitles, type)) {
+        throw new Error('Loại câu hỏi không hợp lệ ở phần ' + (sectionIndex + 1) + ', mục ' + (itemIndex + 1) + '. Dùng abcd, ds hoặc tln.');
+      }
+
+      questionCount += 1;
+      const number = item.length === 3 ? String(item[1]).trim() : String(questionCount);
+      const correctValue = item.length === 3 ? item[2] : item[1];
+      if (!number) throw new Error('Thiếu số câu ở phần ' + (sectionIndex + 1) + ', mục ' + (itemIndex + 1) + '.');
+      if (typeof correctValue !== 'string' && typeof correctValue !== 'number') {
+        throw new Error('Đáp án ở phần ' + (sectionIndex + 1) + ', mục ' + (itemIndex + 1) + ' phải là chuỗi hoặc số.');
+      }
+
+      const sectionTitle = typeTitles[type];
+      questions.push({
+        id: 'section-' + sectionIndex + '-question-' + (questionCount - 1),
+        type,
+        sectionTitle,
+        groupTitle: groupTitle || sectionTitle,
+        numberInSection: number,
+        correct: String(correctValue),
+        headingBefore: questionCount === 1 ? groupTitle : '',
       });
     }
-    state.questions = questions;
-    return;
-  }
-
-  // Có "order": đọc tuần tự, cho phép chèn tiêu đề và tham chiếu câu hỏi tự do.
-  const questions = [];
-  const addedIds = new Set();
-  let activeHeading = '';
-  let pendingHeading = '';
-  let lastDefaultType = null;
-
-  for (const item of answers.order) {
-    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
-
-    if (typeof item.heading === 'string') {
-      const heading = item.heading.trim();
-      if (heading) {
-        activeHeading = heading;
-        pendingHeading = heading;
-      }
-      continue;
-    }
-
-    const type = item.type;
-    const storageKey = item.key == null
-      ? (item.number == null ? '' : String(item.number))
-      : String(item.key);
-    const displayNumber = item.number == null ? storageKey : String(item.number);
-    if (!sectionByKey.has(type) || !storageKey || !displayNumber) continue;
-
-    const id = `${type}-${storageKey}`;
-    const question = questionsById.get(id);
-    if (!question || addedIds.has(id)) continue;
-
-    // "key" dùng để lưu trữ/định danh; "number" chỉ là nhãn hiển thị.
-    question.numberInSection = displayNumber;
-
-    if (pendingHeading) {
-      question.headingBefore = pendingHeading;
-      question.groupTitle = activeHeading;
-      pendingHeading = '';
-    } else if (activeHeading) {
-      question.groupTitle = activeHeading;
-    } else {
-      question.groupTitle = question.sectionTitle;
-      if (lastDefaultType !== type) question.headingBefore = question.sectionTitle;
-      lastDefaultType = type;
-    }
-
-    questions.push(question);
-    addedIds.add(id);
-  }
-
-  // Nếu order bỏ sót câu nào, vẫn đưa câu đó vào cuối để không làm mất đáp án.
-  for (const section of sections) {
-    const remaining = (questionsBySection.get(section.key) || [])
-      .filter((question) => !addedIds.has(question.id));
-
-    remaining.forEach((question, index) => {
-      question.groupTitle = section.title;
-      question.headingBefore = index === 0 ? section.title : '';
-      questions.push(question);
-      addedIds.add(question.id);
-    });
-  }
+  });
 
   state.questions = questions;
 }
-
 function restoreProgress() {
   const saved = loadProgress(examName);
   state.answers = (saved && saved.answers) ? saved.answers : {};
