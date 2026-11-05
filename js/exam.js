@@ -675,29 +675,39 @@ function openQuestionPicker() {
   if (!$questionPicker || !$questionPickerList || document.body.classList.contains('mode-review')) return;
 
   $questionPickerList.innerHTML = '';
+  let activeSectionKey = '';
+
   state.questions.forEach((q, index) => {
+    const sectionKey = String(q.id || q.groupTitle || q.sectionTitle).split('-question-')[0];
+    const sectionTitle = q.headingBefore || q.groupTitle || q.sectionTitle || 'Phần câu hỏi';
+
+    // Add one separator per section instead of repeating its name on every question.
+    if (sectionKey !== activeSectionKey) {
+      const divider = document.createElement('div');
+      divider.className = 'question-picker-divider';
+      const heading = document.createElement('span');
+      heading.textContent = sectionTitle;
+      divider.appendChild(heading);
+      $questionPickerList.appendChild(divider);
+      activeSectionKey = sectionKey;
+    }
+
     const item = document.createElement('button');
     item.type = 'button';
     item.className = 'question-picker-item';
     if (index === state.currentIndex) item.classList.add('current');
-
-    const answered = isQuestionAnswered(q);
-    if (answered) item.classList.add('answered');
+    if (isQuestionAnswered(q)) item.classList.add('answered');
 
     const number = document.createElement('span');
     number.className = 'question-picker-number';
-    number.textContent = String(index + 1);
+    number.textContent = String(q.numberInSection ?? index + 1);
 
-    const label = document.createElement('span');
-    label.className = 'question-picker-label';
-    label.textContent = `Câu ${q.numberInSection}`;
-
-    const section = document.createElement('span');
-    section.className = 'question-picker-section';
-    section.textContent = q.groupTitle || (q.type === 'abcd' ? 'Phần I' : q.type === 'ds' ? 'Phần II' : 'Phần III');
-
-    item.title = `${q.groupTitle || q.sectionTitle} — Câu ${q.numberInSection}`;
-    item.append(number, label, section);
+    item.setAttribute(
+      'aria-label',
+      `${sectionTitle}, câu ${q.numberInSection}, vị trí ${index + 1}/${state.questions.length}`
+    );
+    item.title = `${sectionTitle} — Câu ${q.numberInSection}`;
+    item.appendChild(number);
     item.addEventListener('click', () => {
       setCurrent(index);
       closeQuestionPicker();
