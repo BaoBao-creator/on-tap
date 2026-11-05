@@ -7,8 +7,6 @@ import {
 const $list = document.getElementById('exam-list');
 const $msg = document.getElementById('menu-message');
 const $net = document.getElementById('net-status');
-const $folderTitle = document.getElementById('folder-title');
-const $folderDescription = document.getElementById('folder-description');
 const $breadcrumbs = document.getElementById('breadcrumbs');
 const $search = document.getElementById('folder-search');
 const $itemCount = document.getElementById('folder-item-count');
@@ -137,16 +135,14 @@ function navigateTo(path, updateHistory) {
   window.scrollTo({ top: 0, behavior: 'auto' });
 }
 
-function renderEmptyState(message, detailText) {
+function renderEmptyState(message) {
   const item = document.createElement('li');
   item.className = 'empty-state';
 
   const icon = makeIcon('folder', 'empty-state-icon');
   const title = document.createElement('strong');
   title.textContent = message;
-  const detail = document.createElement('span');
-  detail.textContent = detailText || 'Các thư mục và đề thi sẽ xuất hiện ở đây.';
-  item.append(icon, title, detail);
+  item.append(icon, title);
   $list.appendChild(item);
 }
 
@@ -186,7 +182,7 @@ function renderEntry(item, downloaded, online) {
     const countLabels = [];
     if (counts.folders) countLabels.push(counts.folders + ' thư mục');
     if (counts.exams) countLabels.push(counts.exams + ' đề');
-    subtitle.textContent = countLabels.join(' · ') || 'Thư mục phân loại';
+    subtitle.textContent = countLabels.join(' · ');
   } else {
     subtitle.textContent = 'PDF · Đáp án';
   }
@@ -259,10 +255,7 @@ async function renderList(items) {
   const filtered = (items || []).filter((item) => item.name.toLocaleLowerCase('vi').includes(query));
 
   if (!filtered.length) {
-    renderEmptyState(
-      query ? 'Không tìm thấy mục phù hợp.' : 'Thư mục này chưa có đề thi hoặc thư mục con.',
-      query ? 'Thử từ khóa khác hoặc xóa nội dung tìm kiếm.' : 'Các đề thi và thư mục con sẽ xuất hiện tại đây khi được thêm vào GitHub.'
-    );
+    renderEmptyState(query ? 'Không tìm thấy mục phù hợp.' : 'Chưa có đề thi.');
     return;
   }
 
@@ -286,10 +279,6 @@ async function renderCurrentFolder() {
     return renderCurrentFolder();
   }
 
-  $folderTitle.textContent = folder.path ? folder.name : 'Tất cả đề thi';
-  $folderDescription.textContent = folder.path
-    ? 'Đang xem nội dung trong thư mục này.'
-    : 'Duyệt theo thư mục hoặc mở một đề để bắt đầu làm bài.';
   renderBreadcrumbs();
 
   const children = folder.children || [];
@@ -328,8 +317,8 @@ async function init() {
     library = getCachedExamList();
     setMessage(
       library.length
-        ? 'Bạn đang ngoại tuyến. Chỉ những đề đã tải mới có thể mở.'
-        : 'Chưa có thư viện được lưu trên thiết bị. Hãy kết nối mạng một lần để tải danh sách.',
+        ? 'Ngoại tuyến: chỉ mở được đề đã tải.'
+        : 'Chưa tải thư viện. Hãy kết nối mạng để tải.',
       'warning'
     );
   }
