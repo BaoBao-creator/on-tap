@@ -30,6 +30,7 @@ const $pdfZoomContent = document.getElementById('pdf-zoom-content');
 const state = {
   questions: [],
   answers: {},
+  submittedAnswers: null,
   currentIndex: 0,
   totalCorrect: 0,
 };
@@ -427,6 +428,7 @@ function buildQuestions(sectionsData) {
 function restoreProgress() {
   const saved = loadProgress(examName);
   state.answers = (saved && saved.answers) ? saved.answers : {};
+  state.submittedAnswers = null;
   const savedIndex = saved && Number.isInteger(saved.currentIndex) ? saved.currentIndex : 0;
   state.currentIndex = state.questions.length
     ? Math.max(0, Math.min(savedIndex, state.questions.length - 1))
@@ -442,12 +444,15 @@ function persist() {
   });
 }
 
-function isQuestionAnswered(q) {
-  const answer = state.answers[q.id];
-  if (!answer) return false;
+function isAnswerValueAnswered(q, answer) {
+  if (answer == null || String(answer).trim() === '') return false;
   if (q.type === 'ds') return String(answer).split('').some((value) => value !== 'n');
   if (q.type === 'tln') return /^-?(?:\d+(?:[.,]\d+)?|[.,]\d+)$/.test(String(answer).trim());
   return String(answer).trim().length > 0;
+}
+
+function isQuestionAnswered(q) {
+  return isAnswerValueAnswered(q, state.answers[q.id]);
 }
 
 function normalizeTLNAnswer(value) {
@@ -461,7 +466,7 @@ function normalizeTLNAnswer(value) {
 }
 
 function isAnswerCorrect(q, answer) {
-  if (!isQuestionAnswered(q)) return false;
+  if (!isAnswerValueAnswered(q, answer)) return false;
   if (q.type === 'tln') {
     return normalizeTLNAnswer(answer) === normalizeTLNAnswer(q.correct);
   }
@@ -748,15 +753,27 @@ document.addEventListener('keydown', (event) => {
 });
 
 $submitBtn.addEventListener('click', () => {
-  if (state.questions.length === 0) return;
+  // A submitted attempt is final. Keep a snapshot for review, but clear the
+  // active answers and persisted draft immediately so they cannot reappear
+  // when the exam is reopened.
+  if (state.questions.length === 0 || state.submittedAnswers) return;
+
   const unanswered = state.questions.filter(q => !isQuestionAnswered(q)).length;
   if (unanswered > 0 && !confirm(`Bạn còn ${unanswered} câu chưa làm. Vẫn nộp bài?`)) return;
 
+  const submittedAnswers = { ...state.answers };
   let correct = 0;
   for (const q of state.questions) {
-    if (isAnswerCorrect(q, state.answers[q.id])) correct++;
+    if (isAnswerCorrect(q, submittedAnswers[q.id])) correct++;
   }
+
+  state.submittedAnswers = submittedAnswers;
+  state.answers = {};
+  state.currentIndex = 0;
   state.totalCorrect = correct;
+  clearProgress(examName);
+  render();
+
   const total = state.questions.length;
   const pct = total ? correct / total : 0;
   let cls = 'result-red';
@@ -783,6 +800,7 @@ document.querySelectorAll('.retry-action').forEach(btn => {
 function retry() {
   clearProgress(examName);
   state.answers = {};
+  state.submittedAnswers = null;
   state.currentIndex = 0;
   state.totalCorrect = 0;
   document.body.classList.remove('mode-review');
@@ -798,6 +816,7 @@ function enterReview() {
   $reviewActions.style.display = 'flex';
 
   $answerList.innerHTML = '';
+  const reviewAnswers = state.submittedAnswers || state.answers;
   state.questions.forEach((q) => {
     if (q.headingBefore) {
       const heading = document.createElement('div');
@@ -813,7 +832,7 @@ function enterReview() {
     label.textContent = `Câu ${q.numberInSection}`;
     block.appendChild(label);
 
-    const userAns = state.answers[q.id];
+    const userAns = reviewAnswers[q.id];
     const isCorrect = isAnswerCorrect(q, userAns);
     if (q.type === 'abcd') block.appendChild(reviewABCD(q, userAns));
     else if (q.type === 'ds') block.appendChild(reviewDS(q, userAns));
